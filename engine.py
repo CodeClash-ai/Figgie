@@ -22,12 +22,22 @@ This engine implements a turn-based version where bots take sequential actions.
 import argparse
 import importlib.util
 import json
+import logging
 import os
 import random
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("figgie")
 
 
 # Card suits (using text for simplicity)
@@ -402,6 +412,109 @@ def calculate_scores(game: FiggieGame) -> dict[int, int]:
     return final_scores
 
 
+@dataclass
+class GameLog:
+    """Captures detailed log of a game for replay/analysis."""
+
+    timestamp: str = ""
+    num_players: int = 4
+    suit_counts: dict = field(default_factory=dict)
+    goal_suit: str = ""
+    initial_hands: dict = field(default_factory=dict)
+    events: list = field(default_factory=list)
+    final_hands: dict = field(default_factory=dict)
+    final_money: dict = field(default_factory=dict)
+    scores: dict = field(default_factory=dict)
+
+    def log_setup(self, game: FiggieGame):
+        """Log game setup."""
+        self.timestamp = datetime.now().isoformat()
+        self.num_players = game.num_players
+        self.suit_counts = game.suit_counts.copy()
+        self.goal_suit = game.goal_suit
+        self.initial_hands = {pid: hand.copy() for pid, hand in game.hands.items()}
+        logger.info(f"Game started: {game.num_players} players")
+        logger.info(f"Deck distribution: {game.suit_counts}")
+        logger.debug(f"Goal suit (hidden): {game.goal_suit}")
+        for pid, hand in game.hands.items():
+            logger.debug(f"Player {pid} dealt: {hand}")
+
+    def log_action(
+        self, turn: int, player_id: int, action: dict, valid: bool, error: str = ""
+    ):
+        """Log a player action."""
+        event = {
+            "type": "action",
+            "turn": turn,
+            "player": player_id,
+            "action": action,
+            "valid": valid,
+        }
+        if not valid:
+            event["error"] = error
+        self.events.append(event)
+
+        action_type = action.get("type", "unknown")
+        if action_type == "pass":
+            logger.debug(f"Turn {turn}: P{player_id} passes")
+        elif valid:
+            if action_type in ["bid", "offer"]:
+                logger.info(
+                    f"Turn {turn}: P{player_id} {action_type}s {action['suit']} @ ${action['price']}"
+                )
+            else:
+                logger.info(
+                    f"Turn {turn}: P{player_id} {action_type}s {action['suit']}"
+                )
+        else:
+            logger.warning(f"Turn {turn}: P{player_id} invalid {action}: {error}")
+
+    def log_trade(self, trade: Trade):
+        """Log a completed trade."""
+        event = {
+            "type": "trade",
+            "turn": trade.turn,
+            "suit": trade.suit,
+            "price": trade.price,
+            "buyer": trade.buyer_id,
+            "seller": trade.seller_id,
+        }
+        self.events.append(event)
+        logger.info(
+            f"TRADE: P{trade.buyer_id} buys {trade.suit} from P{trade.seller_id} @ ${trade.price}"
+        )
+
+    def log_end(self, game: FiggieGame):
+        """Log game end and scoring."""
+        self.final_hands = {pid: hand.copy() for pid, hand in game.hands.items()}
+        self.final_money = game.money.copy()
+        self.scores = game.final_scores.copy()
+
+        logger.info(
+            f"Game ended after {game.current_turn} turns, {len(game.trades)} trades"
+        )
+        logger.info(f"Goal suit revealed: {game.goal_suit}")
+        for pid in range(game.num_players):
+            goal_cards = game.hands[pid][game.goal_suit]
+            logger.info(
+                f"P{pid}: {goal_cards} {game.goal_suit}, score={game.final_scores[pid]:+d}"
+            )
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "timestamp": self.timestamp,
+            "num_players": self.num_players,
+            "suit_counts": self.suit_counts,
+            "goal_suit": self.goal_suit,
+            "initial_hands": self.initial_hands,
+            "events": self.events,
+            "final_hands": self.final_hands,
+            "final_money": self.final_money,
+            "scores": self.scores,
+        }
+
+
 def load_player(player_path: str):
     """Load a player module from file path."""
     path = Path(player_path)
@@ -414,8 +527,20 @@ def load_player(player_path: str):
     return module
 
 
-def run_game(player_modules: list, verbose: bool = False) -> dict:
-    """Run a single game of Figgie."""
+def run_game(
+    player_modules: list, verbose: bool = False, enable_logging: bool = True
+) -> tuple[dict, GameLog | None]:
+    """
+    Run a single game of Figgie.
+
+    Args:
+        player_modules: List of player modules with get_action() function
+        verbose: Print verbose output to stdout
+        enable_logging: Enable detailed game logging
+
+    Returns:
+        Tuple of (result_dict, game_log or None)
+    """
     num_players = len(player_modules)
     if num_players not in VALID_PLAYER_COUNTS:
         raise ValueError(
@@ -423,6 +548,7 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
         )
 
     ante = get_ante(num_players)
+    game_log = GameLog() if enable_logging else None
 
     # Create deck and deal
     suit_counts, goal_suit = create_deck()
@@ -437,6 +563,10 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
         game.hands[i] = hands[i]
         game.money[i] = STARTING_MONEY - ante  # After ante
 
+    # Log setup
+    if game_log:
+        game_log.log_setup(game)
+
     if verbose:
         print(f"Deck: {suit_counts}")
         print(f"Goal suit: {goal_suit}")
@@ -447,6 +577,7 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
     consecutive_passes = 0
     turn_count = 0
     max_total_turns = MAX_TURNS_PER_PLAYER * num_players
+    trades_before = 0
 
     while turn_count < max_total_turns and consecutive_passes < num_players * 2:
         current_player = turn_count % num_players
@@ -461,17 +592,31 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
         except Exception as e:
             if verbose:
                 print(f"Player {current_player} raised exception: {e}")
+            logger.warning(f"P{current_player} exception: {e}")
             action = {"type": "pass"}
 
         # Validate action
         is_valid, error = validate_action(game, current_player, action)
+        original_action = action.copy() if isinstance(action, dict) else action
+
         if not is_valid:
             if verbose:
                 print(f"Player {current_player} invalid action: {action} - {error}")
             action = {"type": "pass"}
 
+        # Log action
+        if game_log:
+            game_log.log_action(
+                turn_count, current_player, original_action, is_valid, error
+            )
+
         # Execute action
+        trades_before = len(game.trades)
         execute_action(game, current_player, action)
+
+        # Log trade if one occurred
+        if game_log and len(game.trades) > trades_before:
+            game_log.log_trade(game.trades[-1])
 
         if action.get("type") == "pass":
             consecutive_passes += 1
@@ -486,6 +631,10 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
     # Calculate final scores
     game.final_scores = calculate_scores(game)
 
+    # Log end
+    if game_log:
+        game_log.log_end(game)
+
     if verbose:
         print("\nFinal hands:")
         for i in range(num_players):
@@ -493,7 +642,7 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
         print(f"Goal suit was: {goal_suit}")
         print(f"Final scores: {game.final_scores}")
 
-    return {
+    result = {
         "goal_suit": goal_suit,
         "suit_counts": suit_counts,
         "final_hands": {i: game.hands[i] for i in range(num_players)},
@@ -502,6 +651,8 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
         "trades": len(game.trades),
         "turns": turn_count,
     }
+
+    return result, game_log
 
 
 def main():
@@ -539,13 +690,21 @@ def main():
     total_scores = defaultdict(int)
     round_wins = defaultdict(int)
 
+    # Create output directory if specified
+    if args.output:
+        output_dir = Path(args.output)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
     for round_num in range(args.rounds):
         if args.verbose:
             print(f"\n{'=' * 50}")
             print(f"Round {round_num + 1}")
             print(f"{'=' * 50}")
 
-        result = run_game(player_modules, verbose=args.verbose)
+        enable_logging = args.output is not None
+        result, game_log = run_game(
+            player_modules, verbose=args.verbose, enable_logging=enable_logging
+        )
 
         # Track scores
         for pid, score in result["scores"].items():
@@ -562,12 +721,11 @@ def main():
         else:
             round_wins["draw"] += 1
 
-        # Save game log if output directory specified
-        if args.output:
-            output_dir = Path(args.output)
-            output_dir.mkdir(parents=True, exist_ok=True)
-            with open(output_dir / f"round_{round_num}.json", "w") as f:
-                json.dump(result, f, indent=2)
+        # Save detailed game log if output directory specified
+        if args.output and game_log:
+            log_path = output_dir / f"round_{round_num}.json"
+            with open(log_path, "w") as f:
+                json.dump(game_log.to_dict(), f, indent=2)
 
     # Print final results in the expected format
     print()
