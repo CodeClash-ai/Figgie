@@ -6,10 +6,12 @@ Figgie is a card trading game invented at Jane Street in 2013.
 It simulates open-outcry commodities trading.
 
 Rules:
-- 4 players, each starting with $350 and 10 cards
+- 4 or 5 players, each starting with $350
+- 4 players: 10 cards each, $50 ante
+- 5 players: 8 cards each, $40 ante
 - 40 cards total: two 10-card suits, one 8-card suit, one 12-card suit
 - The goal suit is the same color as the 12-card suit and contains 8 or 10 cards
-- Players ante $50 each to form a $200 pot
+- Players ante to form a $200 pot
 - Players trade cards to collect goal suit cards
 - At end: $10 per goal suit card, remainder of pot to player(s) with most goal suit cards
 - If tied for most, the remainder is split evenly
@@ -35,13 +37,22 @@ BLACK_SUITS = ["spades", "clubs"]
 RED_SUITS = ["hearts", "diamonds"]
 
 # Game constants
-NUM_PLAYERS = 4
+VALID_PLAYER_COUNTS = [4, 5]
 STARTING_MONEY = 350
-ANTE = 50
-POT = ANTE * NUM_PLAYERS  # $200
+POT = 200  # Always $200 regardless of player count
 CARDS_PER_SUIT_OPTIONS = [8, 10, 10, 12]  # Must sum to 40
 CARD_BONUS = 10  # $10 per goal suit card
 MAX_TURNS_PER_PLAYER = 50  # Limit turns to prevent infinite games
+
+
+def get_ante(num_players: int) -> int:
+    """Get ante amount based on player count."""
+    if num_players == 4:
+        return 50
+    elif num_players == 5:
+        return 40
+    else:
+        raise ValueError(f"Invalid player count: {num_players}. Must be 4 or 5.")
 
 
 @dataclass
@@ -66,7 +77,7 @@ class Trade:
 @dataclass
 class FiggieGame:
     """Represents the state of a Figgie game."""
-    num_players: int = NUM_PLAYERS
+    num_players: int = 4  # Default to 4 players
     hands: dict = field(default_factory=dict)  # player_id -> {suit: count}
     money: dict = field(default_factory=dict)  # player_id -> amount
     goal_suit: str = ""
@@ -376,8 +387,10 @@ def load_player(player_path: str):
 def run_game(player_modules: list, verbose: bool = False) -> dict:
     """Run a single game of Figgie."""
     num_players = len(player_modules)
-    if num_players != NUM_PLAYERS:
-        raise ValueError(f"Figgie requires exactly {NUM_PLAYERS} players, got {num_players}")
+    if num_players not in VALID_PLAYER_COUNTS:
+        raise ValueError(f"Figgie requires {VALID_PLAYER_COUNTS} players, got {num_players}")
+
+    ante = get_ante(num_players)
 
     # Create deck and deal
     suit_counts, goal_suit = create_deck()
@@ -390,7 +403,7 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
 
     for i in range(num_players):
         game.hands[i] = hands[i]
-        game.money[i] = STARTING_MONEY - ANTE  # After ante
+        game.money[i] = STARTING_MONEY - ante  # After ante
 
     if verbose:
         print(f"Deck: {suit_counts}")
@@ -467,8 +480,8 @@ def main():
     parser.add_argument("-o", "--output", type=str, help="Output directory for game logs")
     args = parser.parse_args()
 
-    if len(args.players) != NUM_PLAYERS:
-        print(f"Error: Figgie requires exactly {NUM_PLAYERS} players, got {len(args.players)}")
+    if len(args.players) not in VALID_PLAYER_COUNTS:
+        print(f"Error: Figgie requires {VALID_PLAYER_COUNTS} players, got {len(args.players)}")
         sys.exit(1)
 
     # Load player modules

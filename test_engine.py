@@ -6,10 +6,14 @@ Comprehensive tests for the Figgie game engine.
 import unittest
 import random
 from engine import (
-    SUITS, BLACK_SUITS, RED_SUITS, NUM_PLAYERS, STARTING_MONEY, ANTE, POT, CARD_BONUS,
-    create_deck, deal_cards, FiggieGame, Order,
+    SUITS, BLACK_SUITS, RED_SUITS, VALID_PLAYER_COUNTS, STARTING_MONEY, POT, CARD_BONUS,
+    create_deck, deal_cards, FiggieGame, Order, get_ante,
     get_game_state, validate_action, execute_action, calculate_scores
 )
+
+# For backwards compatibility in tests
+NUM_PLAYERS = 4
+ANTE = get_ante(NUM_PLAYERS)
 
 
 class TestDeckCreation(unittest.TestCase):

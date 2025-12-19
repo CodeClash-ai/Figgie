@@ -5,9 +5,11 @@ Figgie is a card trading game invented at [Jane Street](https://www.janestreet.c
 ## Game Rules
 
 ### Overview
-- 4 players compete to collect cards in the **goal suit**
-- Each player starts with $350 and antes $50 to form a $200 pot
-- 40 cards are dealt evenly (10 per player)
+- **4 or 5 players** compete to collect cards in the **goal suit**
+- Each player starts with $350
+- 4 players: $50 ante each, 10 cards each
+- 5 players: $40 ante each, 8 cards each
+- Pot is always $200
 - Players trade cards through a market mechanism
 - At game end, only the **goal suit** cards have value
 
@@ -104,8 +106,11 @@ Invalid actions are converted to `{"type": "pass"}`.
 ## Running Games
 
 ```bash
-# Run a game with 4 bots
+# Run a 4-player game
 python engine.py bot1/main.py bot2/main.py bot3/main.py bot4/main.py -r 10
+
+# Run a 5-player game
+python engine.py p1/main.py p2/main.py p3/main.py p4/main.py p5/main.py -r 10
 
 # Verbose output
 python engine.py bot1/main.py bot2/main.py bot3/main.py bot4/main.py -r 5 -v
