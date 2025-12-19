@@ -3,6 +3,7 @@
 Terminal Visualizer for Figgie
 
 Provides a rich terminal display of Figgie game state with colors and formatting.
+Updated for simultaneous tick model with order book interface.
 """
 
 import os
@@ -101,13 +102,13 @@ class FiggieVisualizer:
             return f"${amount}"
 
     def render_market_panel(self, game) -> list[str]:
-        """Render the market (bids/offers) panel."""
+        """Render the market (order books) panel."""
         lines = []
         lines.append(
             f"{Colors.BOLD}{Colors.YELLOW}╔══════════════════════════════════════════════════╗{Colors.RESET}"
         )
         lines.append(
-            f"{Colors.BOLD}{Colors.YELLOW}║           M A R K E T   Q U O T E S              ║{Colors.RESET}"
+            f"{Colors.BOLD}{Colors.YELLOW}║           O R D E R   B O O K S                  ║{Colors.RESET}"
         )
         lines.append(
             f"{Colors.BOLD}{Colors.YELLOW}╠══════════════════════════════════════════════════╣{Colors.RESET}"
@@ -123,27 +124,28 @@ class FiggieVisualizer:
         for suit in ["spades", "clubs", "hearts", "diamonds"]:
             suit_display = f"{self.format_suit(suit)} {suit.capitalize():8}"
 
-            bid = game.bids.get(suit)
-            offer = game.offers.get(suit)
+            book = game.books[suit]
+            bid = book.bid if book.bid.is_valid() else None
+            ask = book.ask if book.ask.is_valid() else None
 
             if bid:
                 bid_str = f"{Colors.BRIGHT_GREEN}${bid.price:3} (P{bid.player_id}){Colors.RESET}"
             else:
                 bid_str = f"{Colors.DIM}   ---   {Colors.RESET}"
 
-            if offer:
-                offer_str = f"{Colors.BRIGHT_RED}${offer.price:3} (P{offer.player_id}){Colors.RESET}"
+            if ask:
+                ask_str = f"{Colors.BRIGHT_RED}${ask.price:3} (P{ask.player_id}){Colors.RESET}"
             else:
-                offer_str = f"{Colors.DIM}   ---   {Colors.RESET}"
+                ask_str = f"{Colors.DIM}   ---   {Colors.RESET}"
 
             # Calculate spread
-            if bid and offer:
-                spread = offer.price - bid.price
+            if bid and ask:
+                spread = ask.price - bid.price
                 spread_str = f"${spread}"
             else:
                 spread_str = "  -  "
 
-            line = f"{Colors.YELLOW}║{Colors.RESET}  {suit_display}  │  {bid_str:^20}  │  {offer_str:^20}  │ {spread_str:^6} {Colors.YELLOW}║{Colors.RESET}"
+            line = f"{Colors.YELLOW}║{Colors.RESET}  {suit_display}  │  {bid_str:^20}  │  {ask_str:^20}  │ {spread_str:^6} {Colors.YELLOW}║{Colors.RESET}"
             lines.append(line)
 
         lines.append(
@@ -209,20 +211,20 @@ class FiggieVisualizer:
             price = action.get("price", 0)
             return f"{Colors.BRIGHT_GREEN}{name} BIDS ${price} for {suit_fmt} {suit}{Colors.RESET}"
 
-        elif action_type == "offer":
+        elif action_type == "ask":
             price = action.get("price", 0)
-            return f"{Colors.BRIGHT_RED}{name} OFFERS {suit_fmt} {suit} at ${price}{Colors.RESET}"
+            return f"{Colors.BRIGHT_RED}{name} ASKS ${price} for {suit_fmt} {suit}{Colors.RESET}"
 
         elif action_type == "buy":
-            offer = game.offers.get(suit)
-            if offer:
-                return f"{Colors.BRIGHT_YELLOW}{name} BUYS {suit_fmt} {suit} from P{offer.player_id} @ ${offer.price}{Colors.RESET}"
+            book = game.books.get(suit)
+            if book and book.ask.is_valid():
+                return f"{Colors.BRIGHT_YELLOW}{name} BUYS {suit_fmt} {suit} from P{book.ask.player_id} @ ${book.ask.price}{Colors.RESET}"
             return f"{Colors.BRIGHT_YELLOW}{name} BUYS {suit_fmt} {suit}{Colors.RESET}"
 
         elif action_type == "sell":
-            bid = game.bids.get(suit)
-            if bid:
-                return f"{Colors.BRIGHT_YELLOW}{name} SELLS {suit_fmt} {suit} to P{bid.player_id} @ ${bid.price}{Colors.RESET}"
+            book = game.books.get(suit)
+            if book and book.bid.is_valid():
+                return f"{Colors.BRIGHT_YELLOW}{name} SELLS {suit_fmt} {suit} to P{book.bid.player_id} @ ${book.bid.price}{Colors.RESET}"
             return f"{Colors.BRIGHT_YELLOW}{name} SELLS {suit_fmt} {suit}{Colors.RESET}"
 
         return f"{name}: {action}"
@@ -241,7 +243,7 @@ class FiggieVisualizer:
             for trade in reversed(recent):
                 suit_fmt = self.format_suit(trade.suit)
                 lines.append(
-                    f"│ {suit_fmt} ${trade.price:2} P{trade.buyer_id}←P{trade.seller_id} T{trade.turn:3} │"
+                    f"│ {suit_fmt} ${trade.price:2} P{trade.buyer_id}←P{trade.seller_id} T{trade.tick:3} │"
                 )
 
         lines.append(
@@ -252,8 +254,8 @@ class FiggieVisualizer:
     def render_game_state(
         self,
         game,
-        current_player: int = None,
-        action: dict = None,
+        current_tick: int = None,
+        actions: list = None,
         show_goal: bool = False,
     ) -> None:
         """
@@ -261,8 +263,8 @@ class FiggieVisualizer:
 
         Args:
             game: FiggieGame instance
-            current_player: Current player's turn (optional)
-            action: Action being taken (optional)
+            current_tick: Current tick number (optional)
+            actions: List of (player_id, action) tuples from this tick (optional)
             show_goal: Whether to reveal the goal suit
         """
         clear_screen()
@@ -280,16 +282,14 @@ class FiggieVisualizer:
         )
         print()
 
-        # Turn info
-        turn_info = f"  Turn: {Colors.BRIGHT_WHITE}{game.current_turn}{Colors.RESET}"
-        if current_player is not None:
-            name = self.get_player_name(current_player, game.num_players)
-            turn_info += f"  │  Current: {Colors.BRIGHT_CYAN}{name}{Colors.RESET}"
+        # Tick info
+        tick_info = f"  Tick: {Colors.BRIGHT_WHITE}{game.current_tick}{Colors.RESET}"
+        tick_info += f"  │  Model: {Colors.BRIGHT_CYAN}Simultaneous{Colors.RESET}"
         if show_goal:
-            turn_info += (
+            tick_info += (
                 f"  │  Goal: {self.format_suit(game.goal_suit)} {game.goal_suit}"
             )
-        print(turn_info)
+        print(tick_info)
         print()
 
         # Market panel
@@ -302,10 +302,12 @@ class FiggieVisualizer:
             print(f"  {line}")
         print()
 
-        # Current action
-        if action:
-            action_str = self.render_action(current_player, action, game)
-            print(f"  {Colors.BOLD}► {action_str}{Colors.RESET}")
+        # Current actions (all players this tick)
+        if actions:
+            print(f"  {Colors.BOLD}Actions this tick:{Colors.RESET}")
+            for player_id, action in actions:
+                action_str = self.render_action(player_id, action, game)
+                print(f"    ► {action_str}")
             print()
 
         # Trade history (side panel concept - just print below for simplicity)
@@ -338,6 +340,7 @@ class FiggieVisualizer:
             f"  Goal Suit: {self.format_suit(game.goal_suit)} {Colors.BOLD}{game.goal_suit.upper()}{Colors.RESET}"
         )
         print(f"  Total Trades: {len(game.trades)}")
+        print(f"  Total Ticks: {game.current_tick + 1}")
         print()
 
         # Scores table
@@ -385,10 +388,11 @@ def run_visual_game(
     player_modules: list, visualizer: FiggieVisualizer = None, player_names: list = None
 ) -> dict:
     """
-    Run a game with visualization.
+    Run a game with visualization using simultaneous tick model.
 
     This is a modified version of run_game() that includes visualization.
     """
+    import random
     from engine import (
         FiggieGame,
         create_deck,
@@ -399,7 +403,8 @@ def run_visual_game(
         calculate_scores,
         VALID_PLAYER_COUNTS,
         STARTING_MONEY,
-        MAX_TURNS_PER_PLAYER,
+        MAX_TICKS,
+        CONSECUTIVE_PASS_LIMIT,
         get_ante,
     )
 
@@ -430,41 +435,50 @@ def run_visual_game(
     # Initial state
     visualizer.render_game_state(game, show_goal=False)
 
-    # Run trading rounds
-    consecutive_passes = 0
-    turn_count = 0
-    max_total_turns = MAX_TURNS_PER_PLAYER * num_players
+    # Run game with simultaneous tick model
+    consecutive_all_pass = 0
 
-    while turn_count < max_total_turns and consecutive_passes < num_players * 2:
-        current_player = turn_count % num_players
-        game.current_turn = turn_count
+    for tick in range(MAX_TICKS):
+        game.current_tick = tick
 
-        # Get game state for current player
-        state = get_game_state(game, current_player)
+        # Phase 1: Collect actions from ALL players
+        player_actions = []
+        for player_id in range(num_players):
+            state = get_game_state(game, player_id)
+            try:
+                action = player_modules[player_id].get_action(state)
+            except Exception:
+                action = {"type": "pass"}
+            player_actions.append((player_id, action))
 
-        # Get action from player
-        try:
-            action = player_modules[current_player].get_action(state)
-        except Exception:
-            action = {"type": "pass"}
+        # Phase 2: Shuffle action order (simulates racing)
+        random.shuffle(player_actions)
 
-        # Validate action
-        is_valid, error = validate_action(game, current_player, action)
-        if not is_valid:
-            action = {"type": "pass"}
+        # Visualize the tick with all actions
+        visualizer.render_game_state(game, tick, player_actions, show_goal=False)
 
-        # Visualize before executing
-        visualizer.render_game_state(game, current_player, action, show_goal=False)
+        # Phase 3: Execute actions in shuffled order
+        all_passed = True
 
-        # Execute action
-        execute_action(game, current_player, action)
+        for player_id, action in player_actions:
+            # Re-validate (state may have changed)
+            is_valid, _ = validate_action(game, player_id, action)
+            if not is_valid:
+                action = {"type": "pass"}
 
-        if action.get("type") == "pass":
-            consecutive_passes += 1
+            if action.get("type") != "pass":
+                all_passed = False
+
+            if is_valid:
+                execute_action(game, player_id, action)
+
+        # Check for game end
+        if all_passed:
+            consecutive_all_pass += 1
+            if consecutive_all_pass >= CONSECUTIVE_PASS_LIMIT:
+                break
         else:
-            consecutive_passes = 0
-
-        turn_count += 1
+            consecutive_all_pass = 0
 
     # Calculate final scores
     game.final_scores = calculate_scores(game)
@@ -472,7 +486,7 @@ def run_visual_game(
     # Show final state with goal revealed
     visualizer.render_game_state(game, show_goal=True)
     if visualizer.delay > 0:
-        time.sleep(max(1, visualizer.delay * 3))  # Pause longer on final state
+        time.sleep(max(1, visualizer.delay * 3))
 
     # Show final scores
     visualizer.render_final_scores(game, game.final_scores)
@@ -484,7 +498,7 @@ def run_visual_game(
         "final_money": {i: game.money[i] for i in range(num_players)},
         "scores": game.final_scores,
         "trades": len(game.trades),
-        "turns": turn_count,
+        "ticks": game.current_tick + 1,
     }
 
 
