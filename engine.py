@@ -341,8 +341,9 @@ def calculate_scores(game: FiggieGame) -> dict[int, int]:
     total_card_payout = sum(card_payouts.values())
     remainder = POT - total_card_payout
 
-    # Split remainder among winners
+    # Split remainder among winners (distribute leftover cents fairly)
     remainder_per_winner = remainder // len(winners) if winners else 0
+    leftover = remainder % len(winners) if winners else 0
 
     # Calculate final scores (money + pot winnings - ante)
     final_scores = {}
@@ -351,6 +352,10 @@ def calculate_scores(game: FiggieGame) -> dict[int, int]:
         score += card_payouts[pid]  # Card bonus
         if pid in winners:
             score += remainder_per_winner  # Majority bonus
+            # Distribute leftover cents to first winner(s)
+            if leftover > 0:
+                score += 1
+                leftover -= 1
         final_scores[pid] = score
 
     return final_scores
