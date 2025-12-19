@@ -6,7 +6,6 @@ Provides a rich terminal display of Figgie game state with colors and formatting
 """
 
 import os
-import sys
 import time
 
 # ANSI color codes
@@ -377,7 +376,7 @@ def run_visual_game(player_modules: list, visualizer: FiggieVisualizer = None,
         # Get action from player
         try:
             action = player_modules[current_player].get_action(state)
-        except Exception as e:
+        except Exception:
             action = {"type": "pass"}
 
         # Validate action

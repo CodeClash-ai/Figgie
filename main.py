@@ -10,7 +10,6 @@ This bot implements a strategic approach to Figgie:
 """
 
 import random
-from typing import Optional
 
 # Suits and their colors
 SUITS = ["spades", "clubs", "hearts", "diamonds"]

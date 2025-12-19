@@ -28,7 +28,6 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 
 # Card suits (using text for simplicity)
@@ -439,7 +438,7 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
             action = {"type": "pass"}
 
         # Execute action
-        trade_occurred = execute_action(game, current_player, action)
+        execute_action(game, current_player, action)
 
         if action.get("type") == "pass":
             consecutive_passes += 1
@@ -455,7 +454,7 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
     game.final_scores = calculate_scores(game)
 
     if verbose:
-        print(f"\nFinal hands:")
+        print("\nFinal hands:")
         for i in range(num_players):
             print(f"  Player {i}: {game.hands[i]} (money: {game.money[i]})")
         print(f"Goal suit was: {goal_suit}")
@@ -539,7 +538,7 @@ def main():
     print(f"Draws: {round_wins.get('draw', 0)}")
 
     if args.verbose:
-        print(f"\nTotal scores across all rounds:")
+        print("\nTotal scores across all rounds:")
         for i in range(len(args.players)):
             print(f"  Player {i}: {total_scores[i]}")
 
