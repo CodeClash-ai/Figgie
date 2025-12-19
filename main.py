@@ -4,9 +4,11 @@ Figgie Starter Bot for CodeClash
 
 This bot implements a strategic approach to Figgie:
 1. Estimates the goal suit based on hand distribution and market activity
-2. Provides liquidity by posting competitive bids and offers
+2. Provides liquidity by posting competitive bids and asks
 3. Accumulates cards in the likely goal suit
 4. Avoids overpaying for cards
+
+Works with the SIMULTANEOUS TICK model where all players act each tick.
 """
 
 import random
@@ -88,17 +90,17 @@ def get_card_value(suit: str, estimated_goal: str, confidence: float) -> int:
 
 
 def should_buy(
-    state: dict, suit: str, offer_price: int, estimated_goal: str, confidence: float
+    state: dict, suit: str, ask_price: int, estimated_goal: str, confidence: float
 ) -> bool:
-    """Decide if we should buy a card at the given offer price."""
+    """Decide if we should buy a card at the given ask price."""
     value = get_card_value(suit, estimated_goal, confidence)
 
     # Only buy if price is below our estimated value
     # Be more willing to buy goal suit cards
     if suit == estimated_goal:
-        return offer_price < value * 1.2  # Willing to pay a bit more for goal suit
+        return ask_price < value * 1.2  # Willing to pay a bit more for goal suit
     else:
-        return offer_price < value * 0.5  # Be conservative with non-goal suits
+        return ask_price < value * 0.5  # Be conservative with non-goal suits
 
 
 def should_sell(
@@ -124,26 +126,24 @@ def get_action(state: dict) -> dict:
     Main bot decision function.
 
     state contains:
-    - position: our player index (0-3)
+    - position: our player index (0-3 or 0-4)
     - hand: dict of suit -> count of cards we hold
     - money: our current money
-    - bids: dict of suit -> {price, player} or None
-    - offers: dict of suit -> {price, player} or None
+    - books: dict of suit -> {bid: {price, player} or None, ask: {price, player} or None, last_trade}
     - trades: list of completed trades
-    - num_players: number of players (4)
-    - turn: current turn number
+    - num_players: number of players (4 or 5)
+    - tick: current tick number
 
     Returns an action dict:
     - {"type": "pass"}
     - {"type": "bid", "suit": "spades", "price": 5}
-    - {"type": "offer", "suit": "spades", "price": 10}
+    - {"type": "ask", "suit": "spades", "price": 10}
     - {"type": "buy", "suit": "spades"}
     - {"type": "sell", "suit": "spades"}
     """
     hand = state["hand"]
     money = state["money"]
-    bids = state["bids"]
-    offers = state["offers"]
+    books = state["books"]
     position = state["position"]
 
     # Estimate the goal suit
@@ -151,42 +151,47 @@ def get_action(state: dict) -> dict:
 
     # Priority 1: Buy underpriced goal suit cards
     for suit in SUITS:
-        offer = offers.get(suit)
-        if offer and offer["player"] != position:
-            offer_price = offer["price"]
-            if suit == estimated_goal and offer_price <= money:
-                if should_buy(state, suit, offer_price, estimated_goal, confidence):
+        book = books.get(suit, {})
+        ask = book.get("ask")
+        if ask and ask["player"] != position:
+            ask_price = ask["price"]
+            if suit == estimated_goal and ask_price <= money:
+                if should_buy(state, suit, ask_price, estimated_goal, confidence):
                     return {"type": "buy", "suit": suit}
 
     # Priority 2: Sell overpriced non-goal suit cards
     for suit in SUITS:
-        bid = bids.get(suit)
+        book = books.get(suit, {})
+        bid = book.get("bid")
         if bid and bid["player"] != position and hand.get(suit, 0) > 0:
             bid_price = bid["price"]
             if should_sell(state, suit, bid_price, estimated_goal, confidence):
                 return {"type": "sell", "suit": suit}
 
-    # Priority 3: Post offers for non-goal suits we have
+    # Priority 3: Post asks for non-goal suits we have
     for suit in SUITS:
         if suit != estimated_goal and hand.get(suit, 0) > 0:
-            current_offer = offers.get(suit)
+            book = books.get(suit, {})
+            current_ask = book.get("ask")
+            current_bid = book.get("bid")
             our_value = get_card_value(suit, estimated_goal, confidence)
 
-            if current_offer is None:
-                # Post an offer
-                offer_price = max(our_value + 2, 5)
-                return {"type": "offer", "suit": suit, "price": offer_price}
-            elif current_offer["player"] != position:
-                # Undercut existing offer if we can still profit
-                new_price = current_offer["price"] - 1
-                current_bid = bids.get(suit)
+            if current_ask is None:
+                # Post an ask
+                ask_price = max(our_value + 2, 5)
+                return {"type": "ask", "suit": suit, "price": ask_price}
+            elif current_ask["player"] != position:
+                # Undercut existing ask if we can still profit
+                new_price = current_ask["price"] - 1
                 min_price = (current_bid["price"] + 1) if current_bid else 1
                 if new_price >= min_price and new_price >= our_value:
-                    return {"type": "offer", "suit": suit, "price": new_price}
+                    return {"type": "ask", "suit": suit, "price": new_price}
 
     # Priority 4: Post bids for goal suit
     if money > 50:  # Keep some reserve
-        current_bid = bids.get(estimated_goal)
+        book = books.get(estimated_goal, {})
+        current_bid = book.get("bid")
+        current_ask = book.get("ask")
         our_value = get_card_value(estimated_goal, estimated_goal, confidence)
 
         if current_bid is None:
@@ -197,8 +202,7 @@ def get_action(state: dict) -> dict:
         elif current_bid["player"] != position:
             # Outbid if we can
             new_price = current_bid["price"] + 1
-            current_offer = offers.get(estimated_goal)
-            max_price = (current_offer["price"] - 1) if current_offer else money
+            max_price = (current_ask["price"] - 1) if current_ask else money
 
             if new_price <= max_price and new_price <= our_value and new_price <= money:
                 return {"type": "bid", "suit": estimated_goal, "price": new_price}
@@ -206,7 +210,8 @@ def get_action(state: dict) -> dict:
     # Priority 5: Occasionally bid on other suits for liquidity
     if random.random() < 0.1 and money > 30:
         for suit in SUITS:
-            if bids.get(suit) is None and suit != estimated_goal:
+            book = books.get(suit, {})
+            if book.get("bid") is None and suit != estimated_goal:
                 bid_price = random.randint(1, 5)
                 return {"type": "bid", "suit": suit, "price": bid_price}
 

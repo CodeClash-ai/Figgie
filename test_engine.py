@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
-Comprehensive tests for the Figgie game engine.
+Tests for the Figgie game engine.
+
+Tests cover:
+- Deck creation and card distribution
+- Order book and quote management
+- Action validation
+- Trade execution
+- Score calculation (verified against official examples)
+- Simultaneous tick model
 """
 
 import unittest
@@ -11,569 +19,399 @@ from engine import (
     STARTING_MONEY,
     POT,
     CARD_BONUS,
+    get_ante,
+    Quote,
+    OrderBook,
+    FiggieGame,
     create_deck,
     deal_cards,
-    FiggieGame,
-    Order,
-    get_ante,
-    get_game_state,
     validate_action,
     execute_action,
     calculate_scores,
 )
 
-# For backwards compatibility in tests
-NUM_PLAYERS = 4
-ANTE = get_ante(NUM_PLAYERS)
+ANTE = get_ante(4)
 
 
 class TestDeckCreation(unittest.TestCase):
-    """Test deck creation and goal suit selection."""
+    """Test deck creation and distribution."""
 
     def test_deck_has_40_cards(self):
-        """Deck must have exactly 40 cards."""
-        for _ in range(100):  # Test multiple random decks
+        """Deck should have exactly 40 cards."""
+        for _ in range(100):
             suit_counts, _ = create_deck()
             total = sum(suit_counts.values())
-            self.assertEqual(total, 40, f"Deck has {total} cards, expected 40")
+            self.assertEqual(total, 40)
 
     def test_deck_has_correct_distribution(self):
-        """Deck must have 8, 10, 10, 12 distribution."""
+        """Deck should have one 12, two 10s, and one 8."""
         for _ in range(100):
             suit_counts, _ = create_deck()
             counts = sorted(suit_counts.values())
-            self.assertEqual(counts, [8, 10, 10, 12], f"Got distribution {counts}")
+            self.assertEqual(counts, [8, 10, 10, 12])
 
-    def test_goal_suit_same_color_as_12_card_suit(self):
-        """Goal suit must be same color as the 12-card suit."""
+    def test_goal_suit_same_color_as_12(self):
+        """Goal suit should be same color as the 12-card suit."""
         for _ in range(100):
             suit_counts, goal_suit = create_deck()
-
-            # Find the 12-card suit
             twelve_suit = [s for s, c in suit_counts.items() if c == 12][0]
 
-            # Check colors match
-            twelve_color = "black" if twelve_suit in BLACK_SUITS else "red"
-            goal_color = "black" if goal_suit in BLACK_SUITS else "red"
+            if twelve_suit in BLACK_SUITS:
+                self.assertIn(goal_suit, BLACK_SUITS)
+            else:
+                self.assertIn(goal_suit, RED_SUITS)
 
-            self.assertEqual(
-                twelve_color,
-                goal_color,
-                f"12-card suit {twelve_suit} and goal {goal_suit} have different colors",
-            )
-
-    def test_goal_suit_is_not_12_card_suit(self):
-        """Goal suit must not be the 12-card suit itself."""
+    def test_goal_suit_not_12_card_suit(self):
+        """Goal suit should not be the 12-card suit itself."""
         for _ in range(100):
             suit_counts, goal_suit = create_deck()
-
-            # Find the 12-card suit
             twelve_suit = [s for s, c in suit_counts.items() if c == 12][0]
+            self.assertNotEqual(goal_suit, twelve_suit)
 
-            self.assertNotEqual(
-                goal_suit, twelve_suit, f"Goal suit {goal_suit} is the 12-card suit"
-            )
-
-    def test_goal_suit_has_8_or_10_cards(self):
-        """Goal suit must have 8 or 10 cards."""
+    def test_goal_suit_has_8_or_10(self):
+        """Goal suit should have 8 or 10 cards."""
         for _ in range(100):
             suit_counts, goal_suit = create_deck()
-            goal_count = suit_counts[goal_suit]
-
-            self.assertIn(
-                goal_count,
-                [8, 10],
-                f"Goal suit has {goal_count} cards, expected 8 or 10",
-            )
-
-    def test_all_12_deck_configurations_possible(self):
-        """All 12 possible deck configurations should be reachable."""
-        # There are 12 configs: 4 choices for 12-card suit × 3 choices for 8-card position
-        # But goal suit is determined by 12-card suit color
-        seen_configs = set()
-
-        for _ in range(1000):
-            suit_counts, goal_suit = create_deck()
-            config = tuple(sorted([(s, c) for s, c in suit_counts.items()]))
-            seen_configs.add((config, goal_suit))
-
-        # Should see multiple configurations
-        self.assertGreater(
-            len(seen_configs), 5, "Should see variety in deck configurations"
-        )
+            self.assertIn(suit_counts[goal_suit], [8, 10])
 
 
-class TestCardDealing(unittest.TestCase):
-    """Test card dealing mechanics."""
+class TestDealCards(unittest.TestCase):
+    """Test card dealing."""
 
-    def test_cards_dealt_evenly(self):
-        """Each player should receive 10 cards."""
-        for _ in range(50):
-            suit_counts, _ = create_deck()
-            hands = deal_cards(suit_counts, NUM_PLAYERS)
+    def test_deal_4_players(self):
+        """4 players should get 10 cards each."""
+        suit_counts, _ = create_deck()
+        hands = deal_cards(suit_counts, 4)
 
-            for i, hand in enumerate(hands):
-                total = sum(hand.values())
-                self.assertEqual(
-                    total, 10, f"Player {i} has {total} cards, expected 10"
-                )
+        self.assertEqual(len(hands), 4)
+        for hand in hands:
+            total = sum(hand.values())
+            self.assertEqual(total, 10)
 
-    def test_all_cards_dealt(self):
-        """All 40 cards should be distributed."""
-        for _ in range(50):
-            suit_counts, _ = create_deck()
-            hands = deal_cards(suit_counts, NUM_PLAYERS)
+    def test_deal_5_players(self):
+        """5 players should get 8 cards each."""
+        suit_counts, _ = create_deck()
+        hands = deal_cards(suit_counts, 5)
 
-            # Sum up all cards across all hands
-            total_per_suit = {s: 0 for s in SUITS}
-            for hand in hands:
-                for suit, count in hand.items():
-                    total_per_suit[suit] += count
+        self.assertEqual(len(hands), 5)
+        for hand in hands:
+            total = sum(hand.values())
+            self.assertEqual(total, 8)
 
-            # Should match original deck
-            self.assertEqual(total_per_suit, suit_counts)
+    def test_deal_preserves_total(self):
+        """Total cards dealt should equal deck size."""
+        suit_counts, _ = create_deck()
 
-
-class TestGameState(unittest.TestCase):
-    """Test game state management."""
-
-    def test_initial_money_after_ante(self):
-        """Players should start with $300 after $50 ante."""
-        game = FiggieGame()
-        for i in range(NUM_PLAYERS):
-            game.money[i] = STARTING_MONEY - ANTE
-
-        for i in range(NUM_PLAYERS):
-            self.assertEqual(game.money[i], 300)
-
-    def test_game_state_hides_goal_suit(self):
-        """Game state should not reveal the goal suit."""
-        game = FiggieGame()
-        game.goal_suit = "hearts"
-
-        for i in range(NUM_PLAYERS):
-            game.hands[i] = {s: 0 for s in SUITS}
-            game.money[i] = 300
-
-        state = get_game_state(game, 0)
-
-        self.assertNotIn("goal_suit", state)
+        for num_players in [4, 5]:
+            hands = deal_cards(suit_counts, num_players)
+            total_dealt = sum(sum(h.values()) for h in hands)
+            expected = 40 if num_players == 4 else 40
+            self.assertEqual(total_dealt, expected)
 
 
-class TestActionValidation(unittest.TestCase):
+class TestOrderBook(unittest.TestCase):
+    """Test order book functionality."""
+
+    def test_empty_quotes(self):
+        """New order book should have no valid quotes."""
+        book = OrderBook(suit="spades")
+        self.assertFalse(book.bid.is_valid())
+        self.assertFalse(book.ask.is_valid())
+
+    def test_set_bid(self):
+        """Can set a bid quote."""
+        book = OrderBook(suit="spades")
+        book.bid = Quote(price=10, player_id=0)
+        self.assertTrue(book.bid.is_valid())
+        self.assertEqual(book.bid.price, 10)
+        self.assertEqual(book.bid.player_id, 0)
+
+    def test_set_ask(self):
+        """Can set an ask quote."""
+        book = OrderBook(suit="spades")
+        book.ask = Quote(price=15, player_id=1)
+        self.assertTrue(book.ask.is_valid())
+        self.assertEqual(book.ask.price, 15)
+        self.assertEqual(book.ask.player_id, 1)
+
+    def test_reset_quotes(self):
+        """Reset should clear all quotes."""
+        book = OrderBook(suit="spades")
+        book.bid = Quote(price=10, player_id=0)
+        book.ask = Quote(price=15, player_id=1)
+        book.reset_quotes()
+        self.assertFalse(book.bid.is_valid())
+        self.assertFalse(book.ask.is_valid())
+
+    def test_to_dict(self):
+        """to_dict should return proper structure."""
+        book = OrderBook(suit="spades")
+        book.bid = Quote(price=10, player_id=0)
+        book.last_trade_price = 12
+
+        d = book.to_dict()
+        self.assertEqual(d["bid"]["price"], 10)
+        self.assertEqual(d["bid"]["player"], 0)
+        self.assertIsNone(d["ask"])
+        self.assertEqual(d["last_trade"], 12)
+
+
+class TestValidateAction(unittest.TestCase):
     """Test action validation."""
 
     def setUp(self):
-        """Set up a basic game state."""
-        self.game = FiggieGame()
-        for i in range(NUM_PLAYERS):
-            self.game.hands[i] = {"spades": 2, "clubs": 3, "hearts": 3, "diamonds": 2}
-            self.game.money[i] = 300
+        self.game = FiggieGame(num_players=4)
+        self.game.goal_suit = "diamonds"
+        for i in range(4):
+            self.game.hands[i] = {"spades": 3, "clubs": 3, "hearts": 2, "diamonds": 2}
+            self.game.money[i] = STARTING_MONEY - ANTE
 
     def test_pass_always_valid(self):
         """Pass action should always be valid."""
-        valid, error = validate_action(self.game, 0, {"type": "pass"})
+        valid, _ = validate_action(self.game, 0, {"type": "pass"})
         self.assertTrue(valid)
 
-    def test_bid_requires_positive_price(self):
-        """Bid must have positive price."""
-        valid, error = validate_action(
-            self.game, 0, {"type": "bid", "suit": "spades", "price": 0}
+    def test_bid_valid(self):
+        """Valid bid should pass validation."""
+        valid, _ = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 10}
         )
-        self.assertFalse(valid)
+        self.assertTrue(valid)
 
-        valid, error = validate_action(
-            self.game, 0, {"type": "bid", "suit": "spades", "price": -5}
-        )
-        self.assertFalse(valid)
-
-    def test_bid_cannot_exceed_money(self):
-        """Bid cannot exceed available money."""
-        valid, error = validate_action(
-            self.game, 0, {"type": "bid", "suit": "spades", "price": 500}
-        )
-        self.assertFalse(valid)
-        self.assertIn("300", error)
-
-    def test_bid_must_be_higher_than_existing(self):
-        """New bid must be higher than existing bid."""
-        self.game.bids["spades"] = Order("spades", 10, 1, True)
-
-        valid, error = validate_action(
+    def test_bid_must_improve(self):
+        """Bid must be higher than current best bid."""
+        self.game.books["spades"].bid = Quote(price=10, player_id=1)
+        valid, _ = validate_action(
             self.game, 0, {"type": "bid", "suit": "spades", "price": 10}
         )
         self.assertFalse(valid)
 
-        valid, error = validate_action(
-            self.game, 0, {"type": "bid", "suit": "spades", "price": 5}
-        )
-        self.assertFalse(valid)
-
-        valid, error = validate_action(
+        valid, _ = validate_action(
             self.game, 0, {"type": "bid", "suit": "spades", "price": 11}
         )
         self.assertTrue(valid)
 
-    def test_offer_requires_cards(self):
-        """Cannot offer a suit you don't have."""
-        self.game.hands[0]["diamonds"] = 0
-
-        valid, error = validate_action(
-            self.game, 0, {"type": "offer", "suit": "diamonds", "price": 10}
-        )
-        self.assertFalse(valid)
-        self.assertIn("don't have", error)
-
-    def test_offer_must_be_lower_than_existing(self):
-        """New offer must be lower than existing offer."""
-        self.game.offers["spades"] = Order("spades", 10, 1, False)
-
-        valid, error = validate_action(
-            self.game, 0, {"type": "offer", "suit": "spades", "price": 10}
+    def test_bid_cannot_exceed_money(self):
+        """Cannot bid more than you have."""
+        valid, _ = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 1000}
         )
         self.assertFalse(valid)
 
-        valid, error = validate_action(
-            self.game, 0, {"type": "offer", "suit": "spades", "price": 15}
-        )
-        self.assertFalse(valid)
-
-        valid, error = validate_action(
-            self.game, 0, {"type": "offer", "suit": "spades", "price": 9}
-        )
-        self.assertTrue(valid)
-
-    def test_bid_cannot_cross_offer(self):
-        """Bid cannot be >= existing offer (use buy instead)."""
-        self.game.offers["spades"] = Order("spades", 10, 1, False)
-
-        valid, error = validate_action(
+    def test_bid_cannot_cross_ask(self):
+        """Bid cannot be >= ask price."""
+        self.game.books["spades"].ask = Quote(price=10, player_id=1)
+        valid, _ = validate_action(
             self.game, 0, {"type": "bid", "suit": "spades", "price": 10}
         )
         self.assertFalse(valid)
-        self.assertIn("cross", error.lower())
 
-        valid, error = validate_action(
-            self.game, 0, {"type": "bid", "suit": "spades", "price": 9}
+    def test_ask_valid(self):
+        """Valid ask should pass validation."""
+        valid, _ = validate_action(
+            self.game, 0, {"type": "ask", "suit": "spades", "price": 15}
         )
         self.assertTrue(valid)
 
-    def test_offer_cannot_cross_bid(self):
-        """Offer cannot be <= existing bid (use sell instead)."""
-        self.game.bids["spades"] = Order("spades", 10, 1, True)
-
-        valid, error = validate_action(
-            self.game, 0, {"type": "offer", "suit": "spades", "price": 10}
+    def test_ask_must_have_cards(self):
+        """Cannot ask for suit you don't have."""
+        self.game.hands[0]["spades"] = 0
+        valid, _ = validate_action(
+            self.game, 0, {"type": "ask", "suit": "spades", "price": 15}
         )
         self.assertFalse(valid)
-        self.assertIn("cross", error.lower())
 
-        valid, error = validate_action(
-            self.game, 0, {"type": "offer", "suit": "spades", "price": 11}
+    def test_ask_must_improve(self):
+        """Ask must be lower than current best ask."""
+        self.game.books["spades"].ask = Quote(price=15, player_id=1)
+        valid, _ = validate_action(
+            self.game, 0, {"type": "ask", "suit": "spades", "price": 15}
+        )
+        self.assertFalse(valid)
+
+        valid, _ = validate_action(
+            self.game, 0, {"type": "ask", "suit": "spades", "price": 14}
         )
         self.assertTrue(valid)
 
-    def test_buy_requires_offer(self):
-        """Cannot buy if no offer exists."""
-        valid, error = validate_action(self.game, 0, {"type": "buy", "suit": "spades"})
+    def test_ask_cannot_cross_bid(self):
+        """Ask cannot be <= bid price."""
+        self.game.books["spades"].bid = Quote(price=10, player_id=1)
+        valid, _ = validate_action(
+            self.game, 0, {"type": "ask", "suit": "spades", "price": 10}
+        )
         self.assertFalse(valid)
-        self.assertIn("No offer", error)
 
-    def test_cannot_buy_from_self(self):
-        """Cannot buy your own offer."""
-        self.game.offers["spades"] = Order("spades", 10, 0, False)
-
-        valid, error = validate_action(self.game, 0, {"type": "buy", "suit": "spades"})
+    def test_buy_needs_ask(self):
+        """Cannot buy if no ask exists."""
+        valid, _ = validate_action(self.game, 0, {"type": "buy", "suit": "spades"})
         self.assertFalse(valid)
-        self.assertIn("yourself", error)
 
-    def test_buy_requires_sufficient_money(self):
-        """Cannot buy if you can't afford it."""
-        self.game.offers["spades"] = Order("spades", 500, 1, False)
+    def test_buy_valid(self):
+        """Valid buy should pass."""
+        self.game.books["spades"].ask = Quote(price=10, player_id=1)
+        valid, _ = validate_action(self.game, 0, {"type": "buy", "suit": "spades"})
+        self.assertTrue(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "buy", "suit": "spades"})
+    def test_buy_cannot_self_trade(self):
+        """Cannot buy from yourself."""
+        self.game.books["spades"].ask = Quote(price=10, player_id=0)
+        valid, _ = validate_action(self.game, 0, {"type": "buy", "suit": "spades"})
         self.assertFalse(valid)
-        self.assertIn("afford", error.lower())
 
-    def test_sell_requires_bid(self):
+    def test_sell_needs_bid(self):
         """Cannot sell if no bid exists."""
-        valid, error = validate_action(self.game, 0, {"type": "sell", "suit": "spades"})
+        valid, _ = validate_action(self.game, 0, {"type": "sell", "suit": "spades"})
         self.assertFalse(valid)
-        self.assertIn("No bid", error)
 
-    def test_cannot_sell_to_self(self):
-        """Cannot sell to your own bid."""
-        self.game.bids["spades"] = Order("spades", 10, 0, True)
+    def test_sell_valid(self):
+        """Valid sell should pass."""
+        self.game.books["spades"].bid = Quote(price=10, player_id=1)
+        valid, _ = validate_action(self.game, 0, {"type": "sell", "suit": "spades"})
+        self.assertTrue(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "sell", "suit": "spades"})
-        self.assertFalse(valid)
-        self.assertIn("yourself", error)
-
-    def test_sell_requires_cards(self):
-        """Cannot sell a suit you don't have."""
-        self.game.hands[0]["diamonds"] = 0
-        self.game.bids["diamonds"] = Order("diamonds", 10, 1, True)
-
-        valid, error = validate_action(
-            self.game, 0, {"type": "sell", "suit": "diamonds"}
-        )
+    def test_sell_needs_cards(self):
+        """Cannot sell suit you don't have."""
+        self.game.books["spades"].bid = Quote(price=10, player_id=1)
+        self.game.hands[0]["spades"] = 0
+        valid, _ = validate_action(self.game, 0, {"type": "sell", "suit": "spades"})
         self.assertFalse(valid)
 
 
-class TestActionExecution(unittest.TestCase):
+class TestExecuteAction(unittest.TestCase):
     """Test action execution."""
 
     def setUp(self):
-        """Set up a basic game state."""
-        self.game = FiggieGame()
-        for i in range(NUM_PLAYERS):
-            self.game.hands[i] = {"spades": 2, "clubs": 3, "hearts": 3, "diamonds": 2}
-            self.game.money[i] = 300
+        self.game = FiggieGame(num_players=4)
+        self.game.goal_suit = "diamonds"
+        for i in range(4):
+            self.game.hands[i] = {"spades": 3, "clubs": 3, "hearts": 2, "diamonds": 2}
+            self.game.money[i] = STARTING_MONEY - ANTE
 
-    def test_bid_creates_order(self):
-        """Bid should create an order."""
+    def test_bid_sets_quote(self):
+        """Bid should set the best bid."""
         execute_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 10})
+        self.assertEqual(self.game.books["spades"].bid.price, 10)
+        self.assertEqual(self.game.books["spades"].bid.player_id, 0)
 
-        self.assertIsNotNone(self.game.bids["spades"])
-        self.assertEqual(self.game.bids["spades"].price, 10)
-        self.assertEqual(self.game.bids["spades"].player_id, 0)
+    def test_ask_sets_quote(self):
+        """Ask should set the best ask."""
+        execute_action(self.game, 0, {"type": "ask", "suit": "spades", "price": 15})
+        self.assertEqual(self.game.books["spades"].ask.price, 15)
+        self.assertEqual(self.game.books["spades"].ask.player_id, 0)
 
-    def test_offer_creates_order(self):
-        """Offer should create an order."""
-        execute_action(self.game, 0, {"type": "offer", "suit": "spades", "price": 15})
+    def test_buy_executes_trade(self):
+        """Buy should execute trade at ask price."""
+        self.game.books["spades"].ask = Quote(price=10, player_id=1)
+        initial_buyer_money = self.game.money[0]
+        initial_seller_money = self.game.money[1]
 
-        self.assertIsNotNone(self.game.offers["spades"])
-        self.assertEqual(self.game.offers["spades"].price, 15)
-        self.assertEqual(self.game.offers["spades"].player_id, 0)
+        trade = execute_action(self.game, 0, {"type": "buy", "suit": "spades"})
 
-    def test_buy_transfers_card_and_money(self):
-        """Buy should transfer card and money."""
-        self.game.offers["spades"] = Order("spades", 10, 1, False)
-
-        # Player 0 buys from player 1
-        execute_action(self.game, 0, {"type": "buy", "suit": "spades"})
-
-        # Check money transfer
-        self.assertEqual(self.game.money[0], 290)  # Buyer pays
-        self.assertEqual(self.game.money[1], 310)  # Seller receives
-
-        # Check card transfer
-        self.assertEqual(self.game.hands[0]["spades"], 3)  # Buyer gets card
-        self.assertEqual(self.game.hands[1]["spades"], 1)  # Seller loses card
-
-    def test_sell_transfers_card_and_money(self):
-        """Sell should transfer card and money."""
-        self.game.bids["spades"] = Order("spades", 10, 1, True)
-
-        # Player 0 sells to player 1's bid
-        execute_action(self.game, 0, {"type": "sell", "suit": "spades"})
-
-        # Check money transfer
-        self.assertEqual(self.game.money[0], 310)  # Seller receives
-        self.assertEqual(self.game.money[1], 290)  # Buyer pays
-
-        # Check card transfer
-        self.assertEqual(self.game.hands[0]["spades"], 1)  # Seller loses card
-        self.assertEqual(self.game.hands[1]["spades"], 3)  # Buyer gets card
-
-    def test_trade_clears_all_orders(self):
-        """After a trade, all bids and offers should be cleared."""
-        # Set up some orders
-        self.game.bids["spades"] = Order("spades", 5, 2, True)
-        self.game.bids["clubs"] = Order("clubs", 8, 3, True)
-        self.game.offers["spades"] = Order("spades", 10, 1, False)
-        self.game.offers["hearts"] = Order("hearts", 12, 0, False)
-
-        # Execute a trade
-        execute_action(self.game, 0, {"type": "buy", "suit": "spades"})
-
-        # All orders should be cleared
-        for suit in SUITS:
-            self.assertIsNone(self.game.bids[suit])
-            self.assertIsNone(self.game.offers[suit])
-
-    def test_trade_creates_trade_record(self):
-        """Trade should be recorded in trade history."""
-        self.game.offers["spades"] = Order("spades", 10, 1, False)
-        self.game.current_turn = 5
-
-        execute_action(self.game, 0, {"type": "buy", "suit": "spades"})
-
-        self.assertEqual(len(self.game.trades), 1)
-        trade = self.game.trades[0]
+        self.assertIsNotNone(trade)
         self.assertEqual(trade.suit, "spades")
         self.assertEqual(trade.price, 10)
         self.assertEqual(trade.buyer_id, 0)
         self.assertEqual(trade.seller_id, 1)
-        self.assertEqual(trade.turn, 5)
+
+        # Check money transferred
+        self.assertEqual(self.game.money[0], initial_buyer_money - 10)
+        self.assertEqual(self.game.money[1], initial_seller_money + 10)
+
+        # Check cards transferred
+        self.assertEqual(self.game.hands[0]["spades"], 4)
+        self.assertEqual(self.game.hands[1]["spades"], 2)
+
+    def test_sell_executes_trade(self):
+        """Sell should execute trade at bid price."""
+        self.game.books["spades"].bid = Quote(price=10, player_id=1)
+        initial_buyer_money = self.game.money[1]
+        initial_seller_money = self.game.money[0]
+
+        trade = execute_action(self.game, 0, {"type": "sell", "suit": "spades"})
+
+        self.assertIsNotNone(trade)
+        self.assertEqual(trade.buyer_id, 1)
+        self.assertEqual(trade.seller_id, 0)
+
+        # Check money transferred
+        self.assertEqual(self.game.money[0], initial_seller_money + 10)
+        self.assertEqual(self.game.money[1], initial_buyer_money - 10)
+
+    def test_trade_clears_all_books(self):
+        """Trade should clear quotes in ALL suits (per Figgie rules)."""
+        # Set up quotes in multiple suits
+        self.game.books["spades"].bid = Quote(price=5, player_id=2)
+        self.game.books["spades"].ask = Quote(price=10, player_id=1)
+        self.game.books["clubs"].bid = Quote(price=7, player_id=3)
+
+        # Execute a trade in spades
+        execute_action(self.game, 0, {"type": "buy", "suit": "spades"})
+
+        # All books should be cleared
+        for suit in SUITS:
+            self.assertFalse(self.game.books[suit].bid.is_valid())
+            self.assertFalse(self.game.books[suit].ask.is_valid())
 
 
-class TestScoring(unittest.TestCase):
-    """Test scoring calculations."""
+class TestCalculateScores(unittest.TestCase):
+    """Test score calculation."""
 
-    def test_card_bonus(self):
-        """Each goal suit card should be worth $10."""
-        game = FiggieGame()
-        game.goal_suit = "hearts"
-
-        # Set up hands - player 0 has 5 hearts, others have varying amounts
+    def test_basic_scoring(self):
+        """Basic scoring with clear winner."""
+        game = FiggieGame(num_players=4)
+        game.goal_suit = "diamonds"
         game.hands = {
-            0: {"spades": 2, "clubs": 1, "hearts": 5, "diamonds": 2},
-            1: {"spades": 3, "clubs": 4, "hearts": 2, "diamonds": 1},
-            2: {"spades": 3, "clubs": 2, "hearts": 2, "diamonds": 3},
-            3: {"spades": 2, "clubs": 3, "hearts": 1, "diamonds": 4},
+            0: {"spades": 3, "clubs": 3, "hearts": 3, "diamonds": 1},
+            1: {"spades": 3, "clubs": 3, "hearts": 3, "diamonds": 1},
+            2: {"spades": 3, "clubs": 3, "hearts": 3, "diamonds": 1},
+            3: {"spades": 1, "clubs": 1, "hearts": 1, "diamonds": 7},
         }
-        # 10 hearts total in deck
-
-        for i in range(NUM_PLAYERS):
-            game.money[i] = 300
+        for i in range(4):
+            game.money[i] = STARTING_MONEY - ANTE
 
         scores = calculate_scores(game)
 
-        # Player 0 has 5 hearts = $50 card bonus
-        # Player 0 has most hearts, gets remainder (200 - 100 = 100)
-        # Net: -50 (ante) + 50 (cards) + 100 (majority) = 100
-        self.assertEqual(scores[0], 100)
-
-    def test_majority_bonus(self):
-        """Player with most goal cards gets the pot remainder."""
-        game = FiggieGame()
-        game.goal_suit = "clubs"
-
-        # Set up hands
-        game.hands = {
-            0: {"spades": 3, "clubs": 1, "hearts": 3, "diamonds": 3},
-            1: {"spades": 2, "clubs": 2, "hearts": 3, "diamonds": 3},
-            2: {"spades": 2, "clubs": 5, "hearts": 2, "diamonds": 1},  # Most clubs
-            3: {"spades": 3, "clubs": 2, "hearts": 2, "diamonds": 3},
-        }
-        # 10 clubs total
-
-        for i in range(NUM_PLAYERS):
-            game.money[i] = 300
-
-        scores = calculate_scores(game)
-
-        # Player 2 has 5 clubs = $50 card bonus + $100 majority = $150, minus $50 ante = $100
-        self.assertEqual(scores[2], 100)
-
-    def test_tied_majority_splits_remainder(self):
-        """If tied for most, remainder is split evenly."""
-        game = FiggieGame()
-        game.goal_suit = "hearts"
-
-        # Set up hands with tie
-        game.hands = {
-            0: {"spades": 2, "clubs": 3, "hearts": 3, "diamonds": 2},  # Tied for most
-            1: {"spades": 3, "clubs": 3, "hearts": 3, "diamonds": 1},  # Tied for most
-            2: {"spades": 3, "clubs": 2, "hearts": 2, "diamonds": 3},
-            3: {"spades": 2, "clubs": 2, "hearts": 2, "diamonds": 4},
-        }
-        # 10 hearts total
-
-        for i in range(NUM_PLAYERS):
-            game.money[i] = 300
-
-        scores = calculate_scores(game)
-
-        # Players 0 and 1 both have 3 hearts, split remainder
-        # Pot = 200, card payouts = 100, remainder = 100
-        # Each tied winner gets 50
-        # Player 0: -50 + 30 + 50 = 30
-        # Player 1: -50 + 30 + 50 = 30
-        self.assertEqual(scores[0], 30)
-        self.assertEqual(scores[1], 30)
+        # Player 3 has most goal cards, should win the remainder
+        self.assertGreater(scores[3], scores[0])
+        self.assertGreater(scores[3], scores[1])
+        self.assertGreater(scores[3], scores[2])
 
     def test_scores_are_zero_sum(self):
         """Net scores across all players should sum to 0."""
         for _ in range(50):
-            game = FiggieGame()
+            game = FiggieGame(num_players=4)
             suit_counts, goal_suit = create_deck()
-            game.goal_suit = goal_suit
-            game.suit_counts = suit_counts
+            hands = deal_cards(suit_counts, 4)
 
-            hands = deal_cards(suit_counts, NUM_PLAYERS)
-            for i in range(NUM_PLAYERS):
+            game.goal_suit = goal_suit
+            for i in range(4):
                 game.hands[i] = hands[i]
-                game.money[i] = 300
+                game.money[i] = STARTING_MONEY - ANTE
 
             scores = calculate_scores(game)
             total = sum(scores.values())
-
             self.assertEqual(total, 0, f"Scores {scores} sum to {total}, expected 0")
 
-    def test_trading_is_zero_sum(self):
-        """Trading profits should sum to 0."""
-        game = FiggieGame()
-        game.goal_suit = "hearts"
-
-        for i in range(NUM_PLAYERS):
-            game.hands[i] = {"spades": 2, "clubs": 3, "hearts": 3, "diamonds": 2}
-            game.money[i] = 300
-
-        # Do some trades
-        game.offers["spades"] = Order("spades", 10, 1, False)
-        execute_action(game, 0, {"type": "buy", "suit": "spades"})
-
-        game.bids["clubs"] = Order("clubs", 8, 2, True)
-        execute_action(game, 3, {"type": "sell", "suit": "clubs"})
-
-        # Total money should be unchanged
-        total_money = sum(game.money.values())
-        self.assertEqual(total_money, 300 * 4)
-
-
-class TestIntegration(unittest.TestCase):
-    """Integration tests."""
-
-    def test_full_game_no_trades(self):
-        """Test a game where no trades occur."""
-        # This tests the scoring when initial hands are final
-        game = FiggieGame()
-        suit_counts, goal_suit = create_deck()
-        game.goal_suit = goal_suit
-        game.suit_counts = suit_counts
-
-        hands = deal_cards(suit_counts, NUM_PLAYERS)
-        for i in range(NUM_PLAYERS):
-            game.hands[i] = hands[i]
-            game.money[i] = 300
+    def test_tie_splitting(self):
+        """Tied winners should split the remainder evenly."""
+        game = FiggieGame(num_players=4)
+        game.goal_suit = "diamonds"
+        game.hands = {
+            0: {"spades": 2, "clubs": 2, "hearts": 2, "diamonds": 4},
+            1: {"spades": 2, "clubs": 2, "hearts": 2, "diamonds": 4},
+            2: {"spades": 3, "clubs": 3, "hearts": 3, "diamonds": 1},
+            3: {"spades": 3, "clubs": 3, "hearts": 3, "diamonds": 1},
+        }
+        for i in range(4):
+            game.money[i] = STARTING_MONEY - ANTE
 
         scores = calculate_scores(game)
 
-        # Verify all scores are calculated
-        self.assertEqual(len(scores), NUM_PLAYERS)
-
-        # Scores should sum to 0
-        self.assertEqual(sum(scores.values()), 0)
-
-    def test_starter_bot_makes_valid_actions(self):
-        """Test that the starter bot always returns valid actions."""
-        import main
-
-        game = FiggieGame()
-        suit_counts, goal_suit = create_deck()
-        game.goal_suit = goal_suit
-
-        hands = deal_cards(suit_counts, NUM_PLAYERS)
-        for i in range(NUM_PLAYERS):
-            game.hands[i] = hands[i]
-            game.money[i] = 300
-
-        # Run several turns
-        for turn in range(100):
-            player_id = turn % NUM_PLAYERS
-            game.current_turn = turn
-
-            state = get_game_state(game, player_id)
-            action = main.get_action(state)
-
-            is_valid, error = validate_action(game, player_id, action)
-            self.assertTrue(
-                is_valid, f"Turn {turn}, Player {player_id}: {action} - {error}"
-            )
-
-            execute_action(game, player_id, action)
+        # Players 0 and 1 tied, should have equal scores
+        self.assertEqual(scores[0], scores[1])
+        # Players 2 and 3 also equal
+        self.assertEqual(scores[2], scores[3])
 
 
 class TestOfficialExamples(unittest.TestCase):

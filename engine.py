@@ -16,7 +16,11 @@ Rules:
 - At end: $10 per goal suit card, remainder of pot to player(s) with most goal suit cards
 - If tied for most, the remainder is split evenly
 
-This engine implements a turn-based version where bots take sequential actions.
+This engine implements a SIMULTANEOUS TICK model:
+- Each tick, ALL players are polled for their action
+- Actions are collected and executed in RANDOM order
+- This simulates the race condition of real-time open-outcry trading
+- Being randomly selected first = like being faster in real trading
 """
 
 import argparse
@@ -40,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger("figgie")
 
 
-# Card suits (using text for simplicity)
+# Card suits
 SUITS = ["spades", "clubs", "hearts", "diamonds"]
 BLACK_SUITS = ["spades", "clubs"]
 RED_SUITS = ["hearts", "diamonds"]
@@ -51,7 +55,8 @@ STARTING_MONEY = 350
 POT = 200  # Always $200 regardless of player count
 CARDS_PER_SUIT_OPTIONS = [8, 10, 10, 12]  # Must sum to 40
 CARD_BONUS = 10  # $10 per goal suit card
-MAX_TURNS_PER_PLAYER = 50  # Limit turns to prevent infinite games
+MAX_TICKS = 200  # Maximum ticks per game
+CONSECUTIVE_PASS_LIMIT = 3  # End if all players pass this many times in a row
 
 
 def get_ante(num_players: int) -> int:
@@ -65,13 +70,44 @@ def get_ante(num_players: int) -> int:
 
 
 @dataclass
-class Order:
-    """Represents a bid or offer in the market."""
+class Quote:
+    """A bid or ask quote in the order book."""
+
+    price: int = 0
+    player_id: int = -1
+
+    def is_valid(self) -> bool:
+        return self.price > 0 and self.player_id >= 0
+
+    def reset(self):
+        self.price = 0
+        self.player_id = -1
+
+
+@dataclass
+class OrderBook:
+    """Order book for a single suit with best bid and best ask."""
 
     suit: str
-    price: int
-    player_id: int
-    is_bid: bool  # True for bid, False for offer
+    bid: Quote = field(default_factory=Quote)  # Best bid (highest buy price)
+    ask: Quote = field(default_factory=Quote)  # Best ask (lowest sell price)
+    last_trade_price: int | None = None
+
+    def reset_quotes(self):
+        """Clear all quotes (called after each trade per Figgie rules)."""
+        self.bid.reset()
+        self.ask.reset()
+
+    def to_dict(self) -> dict:
+        return {
+            "bid": {"price": self.bid.price, "player": self.bid.player_id}
+            if self.bid.is_valid()
+            else None,
+            "ask": {"price": self.ask.price, "player": self.ask.player_id}
+            if self.ask.is_valid()
+            else None,
+            "last_trade": self.last_trade_price,
+        }
 
 
 @dataclass
@@ -82,81 +118,59 @@ class Trade:
     price: int
     buyer_id: int
     seller_id: int
-    turn: int
+    tick: int
 
 
 @dataclass
 class FiggieGame:
     """Represents the state of a Figgie game."""
 
-    num_players: int = 4  # Default to 4 players
+    num_players: int = 4
     hands: dict = field(default_factory=dict)  # player_id -> {suit: count}
     money: dict = field(default_factory=dict)  # player_id -> amount
     goal_suit: str = ""
-    suit_counts: dict = field(default_factory=dict)  # suit -> total cards
-    bids: dict = field(default_factory=dict)  # suit -> Order or None
-    offers: dict = field(default_factory=dict)  # suit -> Order or None
+    suit_counts: dict = field(default_factory=dict)  # suit -> total cards in deck
+    books: dict = field(default_factory=dict)  # suit -> OrderBook
     trades: list = field(default_factory=list)
-    current_turn: int = 0
+    current_tick: int = 0
     game_over: bool = False
     final_scores: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        # Initialize empty bids/offers for each suit
         for suit in SUITS:
-            self.bids[suit] = None
-            self.offers[suit] = None
+            self.books[suit] = OrderBook(suit=suit)
 
 
 def create_deck() -> tuple[dict[str, int], str]:
     """
     Create a Figgie deck with random suit distribution.
     Returns (suit_counts, goal_suit).
-
-    Rules:
-    - Two suits have 10 cards
-    - One suit has 8 cards
-    - One suit has 12 cards
-    - Goal suit is same color as the 12-card suit
-    - Goal suit has 8 or 10 cards
     """
-    # Shuffle the card counts
     counts = CARDS_PER_SUIT_OPTIONS.copy()
     random.shuffle(counts)
-
-    # Assign counts to suits
     suit_counts = {suit: count for suit, count in zip(SUITS, counts)}
 
     # Find the 12-card suit
-    twelve_card_suit = None
-    for suit, count in suit_counts.items():
-        if count == 12:
-            twelve_card_suit = suit
-            break
+    twelve_card_suit = [s for s, c in suit_counts.items() if c == 12][0]
 
     # Goal suit is same color as 12-card suit, but not the 12-card suit itself
-    # Goal suit has 8 or 10 cards
     if twelve_card_suit in BLACK_SUITS:
         same_color = BLACK_SUITS
     else:
         same_color = RED_SUITS
 
-    # The goal suit is the other suit of the same color (which has 8 or 10 cards)
     goal_suit = [s for s in same_color if s != twelve_card_suit][0]
-
     return suit_counts, goal_suit
 
 
 def deal_cards(suit_counts: dict[str, int], num_players: int) -> list[dict[str, int]]:
     """Deal cards evenly to all players."""
-    # Create deck as list of cards
     deck = []
     for suit, count in suit_counts.items():
         deck.extend([suit] * count)
 
     random.shuffle(deck)
 
-    # Deal evenly (40 cards / 4 players = 10 cards each)
     hands = [{suit: 0 for suit in SUITS} for _ in range(num_players)]
     cards_per_player = len(deck) // num_players
 
@@ -169,42 +183,28 @@ def deal_cards(suit_counts: dict[str, int], num_players: int) -> list[dict[str, 
 
 def get_game_state(game: FiggieGame, player_id: int) -> dict:
     """Get the game state from a player's perspective."""
-    # Clear stale orders (orders from players who no longer have cards to sell)
-    active_bids = {}
-    active_offers = {}
-
+    books_state = {}
     for suit in SUITS:
-        bid = game.bids[suit]
-        offer = game.offers[suit]
-
-        if bid is not None:
-            active_bids[suit] = {"price": bid.price, "player": bid.player_id}
-        else:
-            active_bids[suit] = None
-
-        if offer is not None and game.hands[offer.player_id][suit] > 0:
-            active_offers[suit] = {"price": offer.price, "player": offer.player_id}
-        else:
-            active_offers[suit] = None
+        book = game.books[suit]
+        books_state[suit] = book.to_dict()
 
     return {
         "position": player_id,
         "hand": game.hands[player_id].copy(),
         "money": game.money[player_id],
-        "bids": active_bids,
-        "offers": active_offers,
+        "books": books_state,
         "trades": [
             {
                 "suit": t.suit,
                 "price": t.price,
                 "buyer": t.buyer_id,
                 "seller": t.seller_id,
-                "turn": t.turn,
+                "tick": t.tick,
             }
             for t in game.trades
         ],
         "num_players": game.num_players,
-        "turn": game.current_turn,
+        "tick": game.current_tick,
     }
 
 
@@ -214,8 +214,12 @@ def validate_action(game: FiggieGame, player_id: int, action: dict) -> tuple[boo
         return False, "Action must be a dictionary"
 
     action_type = action.get("type")
-    if action_type not in ["bid", "offer", "buy", "sell", "pass"]:
-        return False, f"Invalid action type: {action_type}"
+    valid_types = ["bid", "ask", "buy", "sell", "pass"]
+    if action_type not in valid_types:
+        return (
+            False,
+            f"Invalid action type: {action_type}. Must be one of {valid_types}",
+        )
 
     if action_type == "pass":
         return True, ""
@@ -224,67 +228,58 @@ def validate_action(game: FiggieGame, player_id: int, action: dict) -> tuple[boo
     if suit not in SUITS:
         return False, f"Invalid suit: {suit}"
 
+    book = game.books[suit]
+
     if action_type == "bid":
         price = action.get("price")
         if not isinstance(price, int) or price <= 0:
             return False, "Bid price must be a positive integer"
         if price > game.money[player_id]:
             return False, f"Cannot bid {price}, only have {game.money[player_id]}"
-        # Check if there's already a higher bid
-        current_bid = game.bids[suit]
-        if current_bid is not None and current_bid.price >= price:
-            return False, f"Must bid higher than current bid of {current_bid.price}"
-        # Check if we'd be crossing the market (bid >= offer)
-        current_offer = game.offers[suit]
-        if current_offer is not None and price >= current_offer.price:
+        # Must be higher than current best bid
+        if book.bid.is_valid() and price <= book.bid.price:
+            return False, f"Must bid higher than current best bid of {book.bid.price}"
+        # Cannot cross the market (bid >= ask)
+        if book.ask.is_valid() and price >= book.ask.price:
             return (
                 False,
-                f"Bid {price} would cross offer at {current_offer.price}. Use 'buy' instead.",
+                f"Bid {price} would cross ask at {book.ask.price}. Use 'buy' instead.",
             )
         return True, ""
 
-    if action_type == "offer":
+    if action_type == "ask":
         price = action.get("price")
         if not isinstance(price, int) or price <= 0:
-            return False, "Offer price must be a positive integer"
+            return False, "Ask price must be a positive integer"
         if game.hands[player_id][suit] <= 0:
-            return False, f"Cannot offer {suit}, don't have any"
-        # Check if there's already a lower offer
-        current_offer = game.offers[suit]
-        if current_offer is not None and current_offer.price <= price:
+            return False, f"Cannot ask {suit}, don't have any"
+        # Must be lower than current best ask
+        if book.ask.is_valid() and price >= book.ask.price:
+            return False, f"Must ask lower than current best ask of {book.ask.price}"
+        # Cannot cross the market (ask <= bid)
+        if book.bid.is_valid() and price <= book.bid.price:
             return (
                 False,
-                f"Must offer lower than current offer of {current_offer.price}",
-            )
-        # Check if we'd be crossing the market (offer <= bid)
-        current_bid = game.bids[suit]
-        if current_bid is not None and price <= current_bid.price:
-            return (
-                False,
-                f"Offer {price} would cross bid at {current_bid.price}. Use 'sell' instead.",
+                f"Ask {price} would cross bid at {book.bid.price}. Use 'sell' instead.",
             )
         return True, ""
 
     if action_type == "buy":
-        offer = game.offers[suit]
-        if offer is None:
-            return False, f"No offer available for {suit}"
-        if offer.player_id == player_id:
+        if not book.ask.is_valid():
+            return False, f"No ask available for {suit}"
+        if book.ask.player_id == player_id:
             return False, "Cannot buy from yourself"
-        if game.hands[offer.player_id][suit] <= 0:
-            return False, f"Seller no longer has {suit} to sell"
-        if offer.price > game.money[player_id]:
+        if book.ask.price > game.money[player_id]:
             return (
                 False,
-                f"Cannot afford {offer.price}, only have {game.money[player_id]}",
+                f"Cannot afford {book.ask.price}, only have {game.money[player_id]}",
             )
         return True, ""
 
     if action_type == "sell":
-        bid = game.bids[suit]
-        if bid is None:
+        if not book.bid.is_valid():
             return False, f"No bid available for {suit}"
-        if bid.player_id == player_id:
+        if book.bid.player_id == player_id:
             return False, "Cannot sell to yourself"
         if game.hands[player_id][suit] <= 0:
             return False, f"Cannot sell {suit}, don't have any"
@@ -293,35 +288,31 @@ def validate_action(game: FiggieGame, player_id: int, action: dict) -> tuple[boo
     return False, "Unknown validation error"
 
 
-def execute_action(game: FiggieGame, player_id: int, action: dict) -> bool:
-    """Execute a validated action. Returns True if a trade occurred."""
+def execute_action(game: FiggieGame, player_id: int, action: dict) -> Trade | None:
+    """Execute a validated action. Returns Trade if one occurred, else None."""
     action_type = action["type"]
 
     if action_type == "pass":
-        return False
+        return None
 
     suit = action["suit"]
+    book = game.books[suit]
 
     if action_type == "bid":
         price = action["price"]
-        game.bids[suit] = Order(
-            suit=suit, price=price, player_id=player_id, is_bid=True
-        )
-        return False
+        book.bid = Quote(price=price, player_id=player_id)
+        return None
 
-    if action_type == "offer":
+    if action_type == "ask":
         price = action["price"]
-        game.offers[suit] = Order(
-            suit=suit, price=price, player_id=player_id, is_bid=False
-        )
-        return False
+        book.ask = Quote(price=price, player_id=player_id)
+        return None
 
     if action_type == "buy":
-        offer = game.offers[suit]
-        # Execute trade
+        # Execute trade at ask price
         buyer_id = player_id
-        seller_id = offer.player_id
-        price = offer.price
+        seller_id = book.ask.player_id
+        price = book.ask.price
 
         game.money[buyer_id] -= price
         game.money[seller_id] += price
@@ -333,23 +324,22 @@ def execute_action(game: FiggieGame, player_id: int, action: dict) -> bool:
             price=price,
             buyer_id=buyer_id,
             seller_id=seller_id,
-            turn=game.current_turn,
+            tick=game.current_tick,
         )
         game.trades.append(trade)
+        book.last_trade_price = price
 
-        # Clear all orders after a trade (per Figgie rules)
+        # Clear ALL order books after a trade (per Figgie rules)
         for s in SUITS:
-            game.bids[s] = None
-            game.offers[s] = None
+            game.books[s].reset_quotes()
 
-        return True
+        return trade
 
     if action_type == "sell":
-        bid = game.bids[suit]
-        # Execute trade
-        buyer_id = bid.player_id
+        # Execute trade at bid price
+        buyer_id = book.bid.player_id
         seller_id = player_id
-        price = bid.price
+        price = book.bid.price
 
         game.money[buyer_id] -= price
         game.money[seller_id] += price
@@ -361,18 +351,18 @@ def execute_action(game: FiggieGame, player_id: int, action: dict) -> bool:
             price=price,
             buyer_id=buyer_id,
             seller_id=seller_id,
-            turn=game.current_turn,
+            tick=game.current_tick,
         )
         game.trades.append(trade)
+        book.last_trade_price = price
 
-        # Clear all orders after a trade (per Figgie rules)
+        # Clear ALL order books after a trade (per Figgie rules)
         for s in SUITS:
-            game.bids[s] = None
-            game.offers[s] = None
+            game.books[s].reset_quotes()
 
-        return True
+        return trade
 
-    return False
+    return None
 
 
 def calculate_scores(game: FiggieGame) -> dict[int, int]:
@@ -386,24 +376,22 @@ def calculate_scores(game: FiggieGame) -> dict[int, int]:
     max_cards = max(goal_cards.values())
     winners = [pid for pid, count in goal_cards.items() if count == max_cards]
 
-    # Calculate pot distribution
-    # $10 per goal suit card
+    # Calculate pot distribution: $10 per goal suit card
     card_payouts = {pid: count * CARD_BONUS for pid, count in goal_cards.items()}
     total_card_payout = sum(card_payouts.values())
     remainder = POT - total_card_payout
 
-    # Split remainder among winners (distribute leftover cents fairly)
+    # Split remainder among winners evenly (NO +1 bug like 0xDub!)
     remainder_per_winner = remainder // len(winners) if winners else 0
     leftover = remainder % len(winners) if winners else 0
 
-    # Calculate final scores (money + pot winnings - ante)
+    # Calculate final scores (net change from starting position)
     final_scores = {}
     for pid in range(game.num_players):
-        score = game.money[pid] - STARTING_MONEY  # Net change from trading
+        score = game.money[pid] - STARTING_MONEY  # Net from trading
         score += card_payouts[pid]  # Card bonus
         if pid in winners:
-            score += remainder_per_winner  # Majority bonus
-            # Distribute leftover cents to first winner(s)
+            score += remainder_per_winner
             if leftover > 0:
                 score += 1
                 leftover -= 1
@@ -427,53 +415,30 @@ class GameLog:
     scores: dict = field(default_factory=dict)
 
     def log_setup(self, game: FiggieGame):
-        """Log game setup."""
         self.timestamp = datetime.now().isoformat()
         self.num_players = game.num_players
         self.suit_counts = game.suit_counts.copy()
         self.goal_suit = game.goal_suit
         self.initial_hands = {pid: hand.copy() for pid, hand in game.hands.items()}
-        logger.info(f"Game started: {game.num_players} players")
+        logger.info(
+            f"Game started: {game.num_players} players, simultaneous tick model"
+        )
         logger.info(f"Deck distribution: {game.suit_counts}")
-        logger.debug(f"Goal suit (hidden): {game.goal_suit}")
-        for pid, hand in game.hands.items():
-            logger.debug(f"Player {pid} dealt: {hand}")
 
-    def log_action(
-        self, turn: int, player_id: int, action: dict, valid: bool, error: str = ""
-    ):
-        """Log a player action."""
-        event = {
-            "type": "action",
-            "turn": turn,
-            "player": player_id,
-            "action": action,
-            "valid": valid,
-        }
-        if not valid:
-            event["error"] = error
+    def log_tick(self, tick: int, actions: list[tuple[int, dict, bool, str]]):
+        """Log all actions from a tick."""
+        event = {"type": "tick", "tick": tick, "actions": []}
+        for player_id, action, valid, error in actions:
+            action_record = {"player": player_id, "action": action, "valid": valid}
+            if not valid:
+                action_record["error"] = error
+            event["actions"].append(action_record)
         self.events.append(event)
 
-        action_type = action.get("type", "unknown")
-        if action_type == "pass":
-            logger.debug(f"Turn {turn}: P{player_id} passes")
-        elif valid:
-            if action_type in ["bid", "offer"]:
-                logger.info(
-                    f"Turn {turn}: P{player_id} {action_type}s {action['suit']} @ ${action['price']}"
-                )
-            else:
-                logger.info(
-                    f"Turn {turn}: P{player_id} {action_type}s {action['suit']}"
-                )
-        else:
-            logger.warning(f"Turn {turn}: P{player_id} invalid {action}: {error}")
-
     def log_trade(self, trade: Trade):
-        """Log a completed trade."""
         event = {
             "type": "trade",
-            "turn": trade.turn,
+            "tick": trade.tick,
             "suit": trade.suit,
             "price": trade.price,
             "buyer": trade.buyer_id,
@@ -485,13 +450,11 @@ class GameLog:
         )
 
     def log_end(self, game: FiggieGame):
-        """Log game end and scoring."""
         self.final_hands = {pid: hand.copy() for pid, hand in game.hands.items()}
         self.final_money = game.money.copy()
         self.scores = game.final_scores.copy()
-
         logger.info(
-            f"Game ended after {game.current_turn} turns, {len(game.trades)} trades"
+            f"Game ended after {game.current_tick} ticks, {len(game.trades)} trades"
         )
         logger.info(f"Goal suit revealed: {game.goal_suit}")
         for pid in range(game.num_players):
@@ -501,7 +464,6 @@ class GameLog:
             )
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization."""
         return {
             "timestamp": self.timestamp,
             "num_players": self.num_players,
@@ -531,15 +493,14 @@ def run_game(
     player_modules: list, verbose: bool = False, enable_logging: bool = True
 ) -> tuple[dict, GameLog | None]:
     """
-    Run a single game of Figgie.
+    Run a single game of Figgie with SIMULTANEOUS TICK model.
 
-    Args:
-        player_modules: List of player modules with get_action() function
-        verbose: Print verbose output to stdout
-        enable_logging: Enable detailed game logging
+    Each tick:
+    1. All players are polled for their action
+    2. Actions are shuffled into random order
+    3. Actions are executed in that order (simulates racing)
 
-    Returns:
-        Tuple of (result_dict, game_log or None)
+    Returns tuple of (result_dict, game_log or None)
     """
     num_players = len(player_modules)
     if num_players not in VALID_PLAYER_COUNTS:
@@ -561,9 +522,8 @@ def run_game(
 
     for i in range(num_players):
         game.hands[i] = hands[i]
-        game.money[i] = STARTING_MONEY - ante  # After ante
+        game.money[i] = STARTING_MONEY - ante
 
-    # Log setup
     if game_log:
         game_log.log_setup(game)
 
@@ -573,65 +533,76 @@ def run_game(
         for i in range(num_players):
             print(f"Player {i} hand: {game.hands[i]}")
 
-    # Run trading rounds
-    consecutive_passes = 0
-    turn_count = 0
-    max_total_turns = MAX_TURNS_PER_PLAYER * num_players
-    trades_before = 0
+    # Run game with simultaneous tick model
+    consecutive_all_pass = 0
 
-    while turn_count < max_total_turns and consecutive_passes < num_players * 2:
-        current_player = turn_count % num_players
-        game.current_turn = turn_count
+    for tick in range(MAX_TICKS):
+        game.current_tick = tick
 
-        # Get game state for current player
-        state = get_game_state(game, current_player)
+        # Phase 1: Collect actions from ALL players
+        player_actions = []
+        for player_id in range(num_players):
+            state = get_game_state(game, player_id)
+            try:
+                action = player_modules[player_id].get_action(state)
+            except Exception as e:
+                if verbose:
+                    print(f"Player {player_id} raised exception: {e}")
+                logger.warning(f"P{player_id} exception: {e}")
+                action = {"type": "pass"}
 
-        # Get action from player
-        try:
-            action = player_modules[current_player].get_action(state)
-        except Exception as e:
-            if verbose:
-                print(f"Player {current_player} raised exception: {e}")
-            logger.warning(f"P{current_player} exception: {e}")
-            action = {"type": "pass"}
+            player_actions.append((player_id, action))
 
-        # Validate action
-        is_valid, error = validate_action(game, current_player, action)
-        original_action = action.copy() if isinstance(action, dict) else action
+        # Phase 2: Shuffle action order (simulates racing)
+        random.shuffle(player_actions)
 
-        if not is_valid:
-            if verbose:
-                print(f"Player {current_player} invalid action: {action} - {error}")
-            action = {"type": "pass"}
+        # Phase 3: Execute actions in shuffled order
+        tick_actions = []
+        all_passed = True
 
-        # Log action
+        for player_id, action in player_actions:
+            # Re-validate (state may have changed due to earlier actions this tick)
+            is_valid, error = validate_action(game, player_id, action)
+
+            if not is_valid:
+                if verbose and action.get("type") != "pass":
+                    print(f"Tick {tick}: P{player_id} invalid: {action} - {error}")
+                action = {"type": "pass"}
+
+            tick_actions.append((player_id, action, is_valid, error))
+
+            if action.get("type") != "pass":
+                all_passed = False
+
+            # Execute if valid
+            if is_valid:
+                trade = execute_action(game, player_id, action)
+                if trade:
+                    if game_log:
+                        game_log.log_trade(trade)
+                    if verbose:
+                        print(
+                            f"Tick {tick}: P{trade.buyer_id} buys {trade.suit} from P{trade.seller_id} @ ${trade.price}"
+                        )
+
         if game_log:
-            game_log.log_action(
-                turn_count, current_player, original_action, is_valid, error
-            )
+            game_log.log_tick(tick, tick_actions)
 
-        # Execute action
-        trades_before = len(game.trades)
-        execute_action(game, current_player, action)
-
-        # Log trade if one occurred
-        if game_log and len(game.trades) > trades_before:
-            game_log.log_trade(game.trades[-1])
-
-        if action.get("type") == "pass":
-            consecutive_passes += 1
+        # Check for game end (all players passing repeatedly)
+        if all_passed:
+            consecutive_all_pass += 1
+            if consecutive_all_pass >= CONSECUTIVE_PASS_LIMIT:
+                if verbose:
+                    print(
+                        f"Game ended: all players passed {CONSECUTIVE_PASS_LIMIT} times"
+                    )
+                break
         else:
-            consecutive_passes = 0
-
-        if verbose and action.get("type") != "pass":
-            print(f"Turn {turn_count}: Player {current_player} -> {action}")
-
-        turn_count += 1
+            consecutive_all_pass = 0
 
     # Calculate final scores
     game.final_scores = calculate_scores(game)
 
-    # Log end
     if game_log:
         game_log.log_end(game)
 
@@ -649,14 +620,16 @@ def run_game(
         "final_money": {i: game.money[i] for i in range(num_players)},
         "scores": game.final_scores,
         "trades": len(game.trades),
-        "turns": turn_count,
+        "ticks": game.current_tick + 1,
     }
 
     return result, game_log
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Figgie Game Engine")
+    parser = argparse.ArgumentParser(
+        description="Figgie Game Engine (Simultaneous Tick Model)"
+    )
     parser.add_argument("players", nargs="+", help="Paths to player bot files")
     parser.add_argument(
         "-r", "--rounds", type=int, default=10, help="Number of rounds to play"
@@ -686,7 +659,7 @@ def main():
             print(f"Error loading {path}: {e}")
             sys.exit(1)
 
-    # Track wins by total score across rounds
+    # Track wins
     total_scores = defaultdict(int)
     round_wins = defaultdict(int)
 
@@ -710,7 +683,7 @@ def main():
         for pid, score in result["scores"].items():
             total_scores[pid] += score
 
-        # Determine round winner (highest score)
+        # Determine round winner
         max_score = max(result["scores"].values())
         round_winners = [
             pid for pid, score in result["scores"].items() if score == max_score
@@ -721,13 +694,13 @@ def main():
         else:
             round_wins["draw"] += 1
 
-        # Save detailed game log if output directory specified
+        # Save game log if output specified
         if args.output and game_log:
             log_path = output_dir / f"round_{round_num}.json"
             with open(log_path, "w") as f:
                 json.dump(game_log.to_dict(), f, indent=2)
 
-    # Print final results in the expected format
+    # Print final results
     print()
     print("FINAL_RESULTS")
     for i, path in enumerate(args.players):
