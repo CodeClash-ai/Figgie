@@ -523,5 +523,99 @@ class TestIntegration(unittest.TestCase):
             execute_action(game, player_id, action)
 
 
+class TestOfficialExamples(unittest.TestCase):
+    """Test scoring against official Figgie examples from figgie.com."""
+
+    def test_example_1_from_official_site(self):
+        """
+        Official Example 1 (4 players):
+        Goal suit: diamonds (10 cards)
+        Josef has 5 diamonds, gets $50 + $100 bonus = $150 from pot
+        Net: -50 (ante) + 150 (pot) = +100
+        """
+        game = FiggieGame(num_players=4)
+        game.goal_suit = "diamonds"
+        game.hands = {
+            0: {"spades": 2, "clubs": 3, "hearts": 4, "diamonds": 1},
+            1: {"spades": 3, "clubs": 2, "hearts": 2, "diamonds": 3},
+            2: {"spades": 3, "clubs": 2, "hearts": 0, "diamonds": 5},
+            3: {"spades": 2, "clubs": 3, "hearts": 4, "diamonds": 1},
+        }
+        for i in range(4):
+            game.money[i] = STARTING_MONEY - ANTE
+
+        scores = calculate_scores(game)
+
+        self.assertEqual(sum(scores.values()), 0)
+        self.assertEqual(scores[0], -40)
+        self.assertEqual(scores[1], -20)
+        self.assertEqual(scores[2], 100)
+        self.assertEqual(scores[3], -40)
+
+    def test_example_2_from_official_site(self):
+        """
+        Official Example 2 (5 players):
+        Goal suit: hearts (8 cards)
+        Nari and Emily tied with 3 hearts each, split $120 bonus
+        """
+        game = FiggieGame(num_players=5)
+        game.goal_suit = "hearts"
+        ante_5p = get_ante(5)
+
+        game.hands = {
+            0: {"spades": 1, "clubs": 3, "hearts": 1, "diamonds": 3},
+            1: {"spades": 2, "clubs": 1, "hearts": 3, "diamonds": 2},
+            2: {"spades": 3, "clubs": 2, "hearts": 0, "diamonds": 3},
+            3: {"spades": 1, "clubs": 2, "hearts": 1, "diamonds": 4},
+            4: {"spades": 1, "clubs": 2, "hearts": 3, "diamonds": 2},
+        }
+        for i in range(5):
+            game.money[i] = STARTING_MONEY - ante_5p
+
+        scores = calculate_scores(game)
+
+        self.assertEqual(sum(scores.values()), 0)
+        self.assertEqual(scores[0], -30)
+        self.assertEqual(scores[1], 50)
+        self.assertEqual(scores[2], -40)
+        self.assertEqual(scores[3], -30)
+        self.assertEqual(scores[4], 50)
+
+    def test_all_12_deck_configurations(self):
+        """Verify all 12 official deck configurations."""
+        official_decks = [
+            (12, 10, 10, 8, "clubs", 100),
+            (12, 10, 8, 10, "clubs", 100),
+            (12, 8, 10, 10, "clubs", 120),
+            (8, 12, 10, 10, "spades", 120),
+            (10, 12, 10, 8, "spades", 100),
+            (10, 12, 8, 10, "spades", 100),
+            (10, 8, 12, 10, "diamonds", 100),
+            (8, 10, 12, 10, "diamonds", 100),
+            (10, 10, 12, 8, "diamonds", 120),
+            (10, 10, 8, 12, "hearts", 120),
+            (10, 8, 10, 12, "hearts", 100),
+            (8, 10, 10, 12, "hearts", 100),
+        ]
+
+        for deck_num, (s, c, h, d, expected_goal, expected_bonus) in enumerate(official_decks, 1):
+            suit_counts = {"spades": s, "clubs": c, "hearts": h, "diamonds": d}
+            twelve_suit = [suit for suit, count in suit_counts.items() if count == 12][0]
+
+            if twelve_suit in BLACK_SUITS:
+                same_color = BLACK_SUITS
+            else:
+                same_color = RED_SUITS
+            goal_suit = [suit for suit in same_color if suit != twelve_suit][0]
+
+            self.assertEqual(goal_suit, expected_goal,
+                           f"Deck {deck_num}: expected goal {expected_goal}, got {goal_suit}")
+
+            goal_cards = suit_counts[goal_suit]
+            remainder = POT - (goal_cards * CARD_BONUS)
+            self.assertEqual(remainder, expected_bonus,
+                           f"Deck {deck_num}: expected bonus {expected_bonus}, got {remainder}")
+
+
 if __name__ == "__main__":
     unittest.main()

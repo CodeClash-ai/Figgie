@@ -119,6 +119,27 @@ python engine.py bot1/main.py bot2/main.py bot3/main.py bot4/main.py -r 5 -v
 python engine.py bot1/main.py bot2/main.py bot3/main.py bot4/main.py -r 10 -o logs/
 ```
 
+## Visualizer
+
+Watch games in your terminal with the rich visualizer:
+
+```bash
+# Run with visualizer (demo mode with starter bot)
+python visualizer.py
+
+# Run with custom bots
+python visualizer.py bot1/main.py bot2/main.py bot3/main.py bot4/main.py
+
+# Custom player names and slower animation
+python visualizer.py --names Alice Bob Carol Dave --delay 0.5
+```
+
+The visualizer shows:
+- Live market quotes (bids/asks) for each suit
+- Player hands and money
+- Trade history
+- Final scores with goal suit reveal
+
 ## Strategy Tips
 
 1. **Identify the goal suit**: The suit with the most cards in your hand is likely the 12-card suit. The goal suit is the OTHER suit of the same color.
@@ -135,9 +156,11 @@ python engine.py bot1/main.py bot2/main.py bot3/main.py bot4/main.py -r 10 -o lo
 
 ```
 Figgie/
-├── engine.py     # Game engine (run games from here)
-├── main.py       # Starter bot implementation
-└── README.md     # This file
+├── engine.py        # Game engine (run games from here)
+├── visualizer.py    # Terminal visualizer for watching games
+├── main.py          # Starter bot implementation
+├── test_engine.py   # Comprehensive test suite
+└── README.md        # This file
 ```
 
 ## Credits
