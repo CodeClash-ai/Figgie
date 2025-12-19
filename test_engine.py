@@ -5,9 +5,21 @@ Comprehensive tests for the Figgie game engine.
 
 import unittest
 from engine import (
-    SUITS, BLACK_SUITS, RED_SUITS, STARTING_MONEY, POT, CARD_BONUS,
-    create_deck, deal_cards, FiggieGame, Order, get_ante,
-    get_game_state, validate_action, execute_action, calculate_scores
+    SUITS,
+    BLACK_SUITS,
+    RED_SUITS,
+    STARTING_MONEY,
+    POT,
+    CARD_BONUS,
+    create_deck,
+    deal_cards,
+    FiggieGame,
+    Order,
+    get_ante,
+    get_game_state,
+    validate_action,
+    execute_action,
+    calculate_scores,
 )
 
 # For backwards compatibility in tests
@@ -44,8 +56,11 @@ class TestDeckCreation(unittest.TestCase):
             twelve_color = "black" if twelve_suit in BLACK_SUITS else "red"
             goal_color = "black" if goal_suit in BLACK_SUITS else "red"
 
-            self.assertEqual(twelve_color, goal_color,
-                           f"12-card suit {twelve_suit} and goal {goal_suit} have different colors")
+            self.assertEqual(
+                twelve_color,
+                goal_color,
+                f"12-card suit {twelve_suit} and goal {goal_suit} have different colors",
+            )
 
     def test_goal_suit_is_not_12_card_suit(self):
         """Goal suit must not be the 12-card suit itself."""
@@ -55,8 +70,9 @@ class TestDeckCreation(unittest.TestCase):
             # Find the 12-card suit
             twelve_suit = [s for s, c in suit_counts.items() if c == 12][0]
 
-            self.assertNotEqual(goal_suit, twelve_suit,
-                              f"Goal suit {goal_suit} is the 12-card suit")
+            self.assertNotEqual(
+                goal_suit, twelve_suit, f"Goal suit {goal_suit} is the 12-card suit"
+            )
 
     def test_goal_suit_has_8_or_10_cards(self):
         """Goal suit must have 8 or 10 cards."""
@@ -64,8 +80,11 @@ class TestDeckCreation(unittest.TestCase):
             suit_counts, goal_suit = create_deck()
             goal_count = suit_counts[goal_suit]
 
-            self.assertIn(goal_count, [8, 10],
-                         f"Goal suit has {goal_count} cards, expected 8 or 10")
+            self.assertIn(
+                goal_count,
+                [8, 10],
+                f"Goal suit has {goal_count} cards, expected 8 or 10",
+            )
 
     def test_all_12_deck_configurations_possible(self):
         """All 12 possible deck configurations should be reachable."""
@@ -79,8 +98,9 @@ class TestDeckCreation(unittest.TestCase):
             seen_configs.add((config, goal_suit))
 
         # Should see multiple configurations
-        self.assertGreater(len(seen_configs), 5,
-                          "Should see variety in deck configurations")
+        self.assertGreater(
+            len(seen_configs), 5, "Should see variety in deck configurations"
+        )
 
 
 class TestCardDealing(unittest.TestCase):
@@ -94,7 +114,9 @@ class TestCardDealing(unittest.TestCase):
 
             for i, hand in enumerate(hands):
                 total = sum(hand.values())
-                self.assertEqual(total, 10, f"Player {i} has {total} cards, expected 10")
+                self.assertEqual(
+                    total, 10, f"Player {i} has {total} cards, expected 10"
+                )
 
     def test_all_cards_dealt(self):
         """All 40 cards should be distributed."""
@@ -155,15 +177,21 @@ class TestActionValidation(unittest.TestCase):
 
     def test_bid_requires_positive_price(self):
         """Bid must have positive price."""
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 0})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 0}
+        )
         self.assertFalse(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": -5})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": -5}
+        )
         self.assertFalse(valid)
 
     def test_bid_cannot_exceed_money(self):
         """Bid cannot exceed available money."""
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 500})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 500}
+        )
         self.assertFalse(valid)
         self.assertIn("300", error)
 
@@ -171,20 +199,28 @@ class TestActionValidation(unittest.TestCase):
         """New bid must be higher than existing bid."""
         self.game.bids["spades"] = Order("spades", 10, 1, True)
 
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 10})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 10}
+        )
         self.assertFalse(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 5})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 5}
+        )
         self.assertFalse(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 11})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 11}
+        )
         self.assertTrue(valid)
 
     def test_offer_requires_cards(self):
         """Cannot offer a suit you don't have."""
         self.game.hands[0]["diamonds"] = 0
 
-        valid, error = validate_action(self.game, 0, {"type": "offer", "suit": "diamonds", "price": 10})
+        valid, error = validate_action(
+            self.game, 0, {"type": "offer", "suit": "diamonds", "price": 10}
+        )
         self.assertFalse(valid)
         self.assertIn("don't have", error)
 
@@ -192,35 +228,49 @@ class TestActionValidation(unittest.TestCase):
         """New offer must be lower than existing offer."""
         self.game.offers["spades"] = Order("spades", 10, 1, False)
 
-        valid, error = validate_action(self.game, 0, {"type": "offer", "suit": "spades", "price": 10})
+        valid, error = validate_action(
+            self.game, 0, {"type": "offer", "suit": "spades", "price": 10}
+        )
         self.assertFalse(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "offer", "suit": "spades", "price": 15})
+        valid, error = validate_action(
+            self.game, 0, {"type": "offer", "suit": "spades", "price": 15}
+        )
         self.assertFalse(valid)
 
-        valid, error = validate_action(self.game, 0, {"type": "offer", "suit": "spades", "price": 9})
+        valid, error = validate_action(
+            self.game, 0, {"type": "offer", "suit": "spades", "price": 9}
+        )
         self.assertTrue(valid)
 
     def test_bid_cannot_cross_offer(self):
         """Bid cannot be >= existing offer (use buy instead)."""
         self.game.offers["spades"] = Order("spades", 10, 1, False)
 
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 10})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 10}
+        )
         self.assertFalse(valid)
         self.assertIn("cross", error.lower())
 
-        valid, error = validate_action(self.game, 0, {"type": "bid", "suit": "spades", "price": 9})
+        valid, error = validate_action(
+            self.game, 0, {"type": "bid", "suit": "spades", "price": 9}
+        )
         self.assertTrue(valid)
 
     def test_offer_cannot_cross_bid(self):
         """Offer cannot be <= existing bid (use sell instead)."""
         self.game.bids["spades"] = Order("spades", 10, 1, True)
 
-        valid, error = validate_action(self.game, 0, {"type": "offer", "suit": "spades", "price": 10})
+        valid, error = validate_action(
+            self.game, 0, {"type": "offer", "suit": "spades", "price": 10}
+        )
         self.assertFalse(valid)
         self.assertIn("cross", error.lower())
 
-        valid, error = validate_action(self.game, 0, {"type": "offer", "suit": "spades", "price": 11})
+        valid, error = validate_action(
+            self.game, 0, {"type": "offer", "suit": "spades", "price": 11}
+        )
         self.assertTrue(valid)
 
     def test_buy_requires_offer(self):
@@ -264,7 +314,9 @@ class TestActionValidation(unittest.TestCase):
         self.game.hands[0]["diamonds"] = 0
         self.game.bids["diamonds"] = Order("diamonds", 10, 1, True)
 
-        valid, error = validate_action(self.game, 0, {"type": "sell", "suit": "diamonds"})
+        valid, error = validate_action(
+            self.game, 0, {"type": "sell", "suit": "diamonds"}
+        )
         self.assertFalse(valid)
 
 
@@ -517,7 +569,9 @@ class TestIntegration(unittest.TestCase):
             action = main.get_action(state)
 
             is_valid, error = validate_action(game, player_id, action)
-            self.assertTrue(is_valid, f"Turn {turn}, Player {player_id}: {action} - {error}")
+            self.assertTrue(
+                is_valid, f"Turn {turn}, Player {player_id}: {action} - {error}"
+            )
 
             execute_action(game, player_id, action)
 
@@ -597,9 +651,13 @@ class TestOfficialExamples(unittest.TestCase):
             (8, 10, 10, 12, "hearts", 100),
         ]
 
-        for deck_num, (s, c, h, d, expected_goal, expected_bonus) in enumerate(official_decks, 1):
+        for deck_num, (s, c, h, d, expected_goal, expected_bonus) in enumerate(
+            official_decks, 1
+        ):
             suit_counts = {"spades": s, "clubs": c, "hearts": h, "diamonds": d}
-            twelve_suit = [suit for suit, count in suit_counts.items() if count == 12][0]
+            twelve_suit = [suit for suit, count in suit_counts.items() if count == 12][
+                0
+            ]
 
             if twelve_suit in BLACK_SUITS:
                 same_color = BLACK_SUITS
@@ -607,13 +665,19 @@ class TestOfficialExamples(unittest.TestCase):
                 same_color = RED_SUITS
             goal_suit = [suit for suit in same_color if suit != twelve_suit][0]
 
-            self.assertEqual(goal_suit, expected_goal,
-                           f"Deck {deck_num}: expected goal {expected_goal}, got {goal_suit}")
+            self.assertEqual(
+                goal_suit,
+                expected_goal,
+                f"Deck {deck_num}: expected goal {expected_goal}, got {goal_suit}",
+            )
 
             goal_cards = suit_counts[goal_suit]
             remainder = POT - (goal_cards * CARD_BONUS)
-            self.assertEqual(remainder, expected_bonus,
-                           f"Deck {deck_num}: expected bonus {expected_bonus}, got {remainder}")
+            self.assertEqual(
+                remainder,
+                expected_bonus,
+                f"Deck {deck_num}: expected bonus {expected_bonus}, got {remainder}",
+            )
 
 
 if __name__ == "__main__":

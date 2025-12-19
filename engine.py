@@ -57,6 +57,7 @@ def get_ante(num_players: int) -> int:
 @dataclass
 class Order:
     """Represents a bid or offer in the market."""
+
     suit: str
     price: int
     player_id: int
@@ -66,6 +67,7 @@ class Order:
 @dataclass
 class Trade:
     """Represents a completed trade."""
+
     suit: str
     price: int
     buyer_id: int
@@ -76,6 +78,7 @@ class Trade:
 @dataclass
 class FiggieGame:
     """Represents the state of a Figgie game."""
+
     num_players: int = 4  # Default to 4 players
     hands: dict = field(default_factory=dict)  # player_id -> {suit: count}
     money: dict = field(default_factory=dict)  # player_id -> amount
@@ -147,7 +150,7 @@ def deal_cards(suit_counts: dict[str, int], num_players: int) -> list[dict[str, 
     hands = [{suit: 0 for suit in SUITS} for _ in range(num_players)]
     cards_per_player = len(deck) // num_players
 
-    for i, card in enumerate(deck[:cards_per_player * num_players]):
+    for i, card in enumerate(deck[: cards_per_player * num_players]):
         player = i % num_players
         hands[player][card] += 1
 
@@ -186,7 +189,7 @@ def get_game_state(game: FiggieGame, player_id: int) -> dict:
                 "price": t.price,
                 "buyer": t.buyer_id,
                 "seller": t.seller_id,
-                "turn": t.turn
+                "turn": t.turn,
             }
             for t in game.trades
         ],
@@ -224,7 +227,10 @@ def validate_action(game: FiggieGame, player_id: int, action: dict) -> tuple[boo
         # Check if we'd be crossing the market (bid >= offer)
         current_offer = game.offers[suit]
         if current_offer is not None and price >= current_offer.price:
-            return False, f"Bid {price} would cross offer at {current_offer.price}. Use 'buy' instead."
+            return (
+                False,
+                f"Bid {price} would cross offer at {current_offer.price}. Use 'buy' instead.",
+            )
         return True, ""
 
     if action_type == "offer":
@@ -236,11 +242,17 @@ def validate_action(game: FiggieGame, player_id: int, action: dict) -> tuple[boo
         # Check if there's already a lower offer
         current_offer = game.offers[suit]
         if current_offer is not None and current_offer.price <= price:
-            return False, f"Must offer lower than current offer of {current_offer.price}"
+            return (
+                False,
+                f"Must offer lower than current offer of {current_offer.price}",
+            )
         # Check if we'd be crossing the market (offer <= bid)
         current_bid = game.bids[suit]
         if current_bid is not None and price <= current_bid.price:
-            return False, f"Offer {price} would cross bid at {current_bid.price}. Use 'sell' instead."
+            return (
+                False,
+                f"Offer {price} would cross bid at {current_bid.price}. Use 'sell' instead.",
+            )
         return True, ""
 
     if action_type == "buy":
@@ -252,7 +264,10 @@ def validate_action(game: FiggieGame, player_id: int, action: dict) -> tuple[boo
         if game.hands[offer.player_id][suit] <= 0:
             return False, f"Seller no longer has {suit} to sell"
         if offer.price > game.money[player_id]:
-            return False, f"Cannot afford {offer.price}, only have {game.money[player_id]}"
+            return (
+                False,
+                f"Cannot afford {offer.price}, only have {game.money[player_id]}",
+            )
         return True, ""
 
     if action_type == "sell":
@@ -279,12 +294,16 @@ def execute_action(game: FiggieGame, player_id: int, action: dict) -> bool:
 
     if action_type == "bid":
         price = action["price"]
-        game.bids[suit] = Order(suit=suit, price=price, player_id=player_id, is_bid=True)
+        game.bids[suit] = Order(
+            suit=suit, price=price, player_id=player_id, is_bid=True
+        )
         return False
 
     if action_type == "offer":
         price = action["price"]
-        game.offers[suit] = Order(suit=suit, price=price, player_id=player_id, is_bid=False)
+        game.offers[suit] = Order(
+            suit=suit, price=price, player_id=player_id, is_bid=False
+        )
         return False
 
     if action_type == "buy":
@@ -299,7 +318,13 @@ def execute_action(game: FiggieGame, player_id: int, action: dict) -> bool:
         game.hands[buyer_id][suit] += 1
         game.hands[seller_id][suit] -= 1
 
-        trade = Trade(suit=suit, price=price, buyer_id=buyer_id, seller_id=seller_id, turn=game.current_turn)
+        trade = Trade(
+            suit=suit,
+            price=price,
+            buyer_id=buyer_id,
+            seller_id=seller_id,
+            turn=game.current_turn,
+        )
         game.trades.append(trade)
 
         # Clear all orders after a trade (per Figgie rules)
@@ -321,7 +346,13 @@ def execute_action(game: FiggieGame, player_id: int, action: dict) -> bool:
         game.hands[buyer_id][suit] += 1
         game.hands[seller_id][suit] -= 1
 
-        trade = Trade(suit=suit, price=price, buyer_id=buyer_id, seller_id=seller_id, turn=game.current_turn)
+        trade = Trade(
+            suit=suit,
+            price=price,
+            buyer_id=buyer_id,
+            seller_id=seller_id,
+            turn=game.current_turn,
+        )
         game.trades.append(trade)
 
         # Clear all orders after a trade (per Figgie rules)
@@ -387,7 +418,9 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
     """Run a single game of Figgie."""
     num_players = len(player_modules)
     if num_players not in VALID_PLAYER_COUNTS:
-        raise ValueError(f"Figgie requires {VALID_PLAYER_COUNTS} players, got {num_players}")
+        raise ValueError(
+            f"Figgie requires {VALID_PLAYER_COUNTS} players, got {num_players}"
+        )
 
     ante = get_ante(num_players)
 
@@ -474,13 +507,19 @@ def run_game(player_modules: list, verbose: bool = False) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Figgie Game Engine")
     parser.add_argument("players", nargs="+", help="Paths to player bot files")
-    parser.add_argument("-r", "--rounds", type=int, default=10, help="Number of rounds to play")
+    parser.add_argument(
+        "-r", "--rounds", type=int, default=10, help="Number of rounds to play"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("-o", "--output", type=str, help="Output directory for game logs")
+    parser.add_argument(
+        "-o", "--output", type=str, help="Output directory for game logs"
+    )
     args = parser.parse_args()
 
     if len(args.players) not in VALID_PLAYER_COUNTS:
-        print(f"Error: Figgie requires {VALID_PLAYER_COUNTS} players, got {len(args.players)}")
+        print(
+            f"Error: Figgie requires {VALID_PLAYER_COUNTS} players, got {len(args.players)}"
+        )
         sys.exit(1)
 
     # Load player modules
@@ -502,9 +541,9 @@ def main():
 
     for round_num in range(args.rounds):
         if args.verbose:
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             print(f"Round {round_num + 1}")
-            print(f"{'='*50}")
+            print(f"{'=' * 50}")
 
         result = run_game(player_modules, verbose=args.verbose)
 
@@ -514,7 +553,9 @@ def main():
 
         # Determine round winner (highest score)
         max_score = max(result["scores"].values())
-        round_winners = [pid for pid, score in result["scores"].items() if score == max_score]
+        round_winners = [
+            pid for pid, score in result["scores"].items() if score == max_score
+        ]
 
         if len(round_winners) == 1:
             round_wins[round_winners[0]] += 1
@@ -534,7 +575,7 @@ def main():
     for i, path in enumerate(args.players):
         name = os.path.basename(os.path.dirname(path))
         wins = round_wins.get(i, 0)
-        print(f"Bot_{i+1}_main: {wins} rounds won ({name})")
+        print(f"Bot_{i + 1}_main: {wins} rounds won ({name})")
     print(f"Draws: {round_wins.get('draw', 0)}")
 
     if args.verbose:

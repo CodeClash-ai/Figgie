@@ -8,6 +8,7 @@ Provides a rich terminal display of Figgie game state with colors and formatting
 import os
 import time
 
+
 # ANSI color codes
 class Colors:
     RESET = "\033[0m"
@@ -52,7 +53,7 @@ SUITS = {
 
 def clear_screen():
     """Clear terminal screen."""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def hide_cursor():
@@ -102,14 +103,22 @@ class FiggieVisualizer:
     def render_market_panel(self, game) -> list[str]:
         """Render the market (bids/offers) panel."""
         lines = []
-        lines.append(f"{Colors.BOLD}{Colors.YELLOW}╔══════════════════════════════════════════════════╗{Colors.RESET}")
-        lines.append(f"{Colors.BOLD}{Colors.YELLOW}║           M A R K E T   Q U O T E S              ║{Colors.RESET}")
-        lines.append(f"{Colors.BOLD}{Colors.YELLOW}╠══════════════════════════════════════════════════╣{Colors.RESET}")
+        lines.append(
+            f"{Colors.BOLD}{Colors.YELLOW}╔══════════════════════════════════════════════════╗{Colors.RESET}"
+        )
+        lines.append(
+            f"{Colors.BOLD}{Colors.YELLOW}║           M A R K E T   Q U O T E S              ║{Colors.RESET}"
+        )
+        lines.append(
+            f"{Colors.BOLD}{Colors.YELLOW}╠══════════════════════════════════════════════════╣{Colors.RESET}"
+        )
 
         # Header
         header = f"{Colors.YELLOW}║{Colors.RESET}  {'SUIT':^10}  │  {'BID':^10}  │  {'ASK':^10}  │ {'SPREAD':^6} {Colors.YELLOW}║{Colors.RESET}"
         lines.append(header)
-        lines.append(f"{Colors.YELLOW}║{Colors.RESET}{'─' * 14}┼{'─' * 14}┼{'─' * 14}┼{'─' * 8}{Colors.YELLOW}║{Colors.RESET}")
+        lines.append(
+            f"{Colors.YELLOW}║{Colors.RESET}{'─' * 14}┼{'─' * 14}┼{'─' * 14}┼{'─' * 8}{Colors.YELLOW}║{Colors.RESET}"
+        )
 
         for suit in ["spades", "clubs", "hearts", "diamonds"]:
             suit_display = f"{self.format_suit(suit)} {suit.capitalize():8}"
@@ -137,15 +146,23 @@ class FiggieVisualizer:
             line = f"{Colors.YELLOW}║{Colors.RESET}  {suit_display}  │  {bid_str:^20}  │  {offer_str:^20}  │ {spread_str:^6} {Colors.YELLOW}║{Colors.RESET}"
             lines.append(line)
 
-        lines.append(f"{Colors.BOLD}{Colors.YELLOW}╚══════════════════════════════════════════════════╝{Colors.RESET}")
+        lines.append(
+            f"{Colors.BOLD}{Colors.YELLOW}╚══════════════════════════════════════════════════╝{Colors.RESET}"
+        )
         return lines
 
     def render_players_panel(self, game) -> list[str]:
         """Render the players info panel."""
         lines = []
-        lines.append(f"{Colors.BOLD}{Colors.CYAN}╔═══════════════════════════════════════════════════════════════════╗{Colors.RESET}")
-        lines.append(f"{Colors.BOLD}{Colors.CYAN}║                      P L A Y E R S                                ║{Colors.RESET}")
-        lines.append(f"{Colors.BOLD}{Colors.CYAN}╠═══════════════════════════════════════════════════════════════════╣{Colors.RESET}")
+        lines.append(
+            f"{Colors.BOLD}{Colors.CYAN}╔═══════════════════════════════════════════════════════════════════╗{Colors.RESET}"
+        )
+        lines.append(
+            f"{Colors.BOLD}{Colors.CYAN}║                      P L A Y E R S                                ║{Colors.RESET}"
+        )
+        lines.append(
+            f"{Colors.BOLD}{Colors.CYAN}╠═══════════════════════════════════════════════════════════════════╣{Colors.RESET}"
+        )
 
         # Header
         header = f"{Colors.CYAN}║{Colors.RESET} {'PLAYER':^8} │ {'MONEY':^8} │ "
@@ -153,7 +170,9 @@ class FiggieVisualizer:
             header += f" {self.format_suit(suit)} │"
         header += f" {'TOTAL':^5} {Colors.CYAN}║{Colors.RESET}"
         lines.append(header)
-        lines.append(f"{Colors.CYAN}║{Colors.RESET}{'─' * 10}┼{'─' * 10}┼{'─' * 4}┼{'─' * 4}┼{'─' * 4}┼{'─' * 4}┼{'─' * 7}{Colors.CYAN}║{Colors.RESET}")
+        lines.append(
+            f"{Colors.CYAN}║{Colors.RESET}{'─' * 10}┼{'─' * 10}┼{'─' * 4}┼{'─' * 4}┼{'─' * 4}┼{'─' * 4}┼{'─' * 7}{Colors.CYAN}║{Colors.RESET}"
+        )
 
         for pid in range(game.num_players):
             name = self.get_player_name(pid, game.num_players)
@@ -170,7 +189,9 @@ class FiggieVisualizer:
             line += f" {total_cards:^5} {Colors.CYAN}║{Colors.RESET}"
             lines.append(line)
 
-        lines.append(f"{Colors.BOLD}{Colors.CYAN}╚═══════════════════════════════════════════════════════════════════╝{Colors.RESET}")
+        lines.append(
+            f"{Colors.BOLD}{Colors.CYAN}╚═══════════════════════════════════════════════════════════════════╝{Colors.RESET}"
+        )
         return lines
 
     def render_action(self, player_id: int, action: dict, game) -> str:
@@ -209,7 +230,9 @@ class FiggieVisualizer:
     def render_trade_history(self, trades: list, limit: int = 5) -> list[str]:
         """Render recent trade history."""
         lines = []
-        lines.append(f"{Colors.BOLD}{Colors.MAGENTA}┌─── Recent Trades ───┐{Colors.RESET}")
+        lines.append(
+            f"{Colors.BOLD}{Colors.MAGENTA}┌─── Recent Trades ───┐{Colors.RESET}"
+        )
 
         recent = trades[-limit:] if len(trades) > limit else trades
         if not recent:
@@ -217,13 +240,22 @@ class FiggieVisualizer:
         else:
             for trade in reversed(recent):
                 suit_fmt = self.format_suit(trade.suit)
-                lines.append(f"│ {suit_fmt} ${trade.price:2} P{trade.buyer_id}←P{trade.seller_id} T{trade.turn:3} │")
+                lines.append(
+                    f"│ {suit_fmt} ${trade.price:2} P{trade.buyer_id}←P{trade.seller_id} T{trade.turn:3} │"
+                )
 
-        lines.append(f"{Colors.BOLD}{Colors.MAGENTA}└─────────────────────┘{Colors.RESET}")
+        lines.append(
+            f"{Colors.BOLD}{Colors.MAGENTA}└─────────────────────┘{Colors.RESET}"
+        )
         return lines
 
-    def render_game_state(self, game, current_player: int = None, action: dict = None,
-                          show_goal: bool = False) -> None:
+    def render_game_state(
+        self,
+        game,
+        current_player: int = None,
+        action: dict = None,
+        show_goal: bool = False,
+    ) -> None:
         """
         Render the full game state to terminal.
 
@@ -237,9 +269,15 @@ class FiggieVisualizer:
         hide_cursor()
 
         # Title
-        print(f"\n{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╔═══════════════════════════════════════════╗{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ║     F I G G I E   T R A D I N G   F L O O R     ║{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╚═══════════════════════════════════════════╝{Colors.RESET}")
+        print(
+            f"\n{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╔═══════════════════════════════════════════╗{Colors.RESET}"
+        )
+        print(
+            f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ║     F I G G I E   T R A D I N G   F L O O R     ║{Colors.RESET}"
+        )
+        print(
+            f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╚═══════════════════════════════════════════╝{Colors.RESET}"
+        )
         print()
 
         # Turn info
@@ -248,7 +286,9 @@ class FiggieVisualizer:
             name = self.get_player_name(current_player, game.num_players)
             turn_info += f"  │  Current: {Colors.BRIGHT_CYAN}{name}{Colors.RESET}"
         if show_goal:
-            turn_info += f"  │  Goal: {self.format_suit(game.goal_suit)} {game.goal_suit}"
+            turn_info += (
+                f"  │  Goal: {self.format_suit(game.goal_suit)} {game.goal_suit}"
+            )
         print(turn_info)
         print()
 
@@ -282,20 +322,34 @@ class FiggieVisualizer:
         """Render final scores screen."""
         clear_screen()
 
-        print(f"\n{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╔═══════════════════════════════════════════╗{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ║            G A M E   O V E R              ║{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╚═══════════════════════════════════════════╝{Colors.RESET}")
+        print(
+            f"\n{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╔═══════════════════════════════════════════╗{Colors.RESET}"
+        )
+        print(
+            f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ║            G A M E   O V E R              ║{Colors.RESET}"
+        )
+        print(
+            f"{Colors.BOLD}{Colors.BRIGHT_YELLOW}  ╚═══════════════════════════════════════════╝{Colors.RESET}"
+        )
         print()
 
         # Reveal goal suit
-        print(f"  Goal Suit: {self.format_suit(game.goal_suit)} {Colors.BOLD}{game.goal_suit.upper()}{Colors.RESET}")
+        print(
+            f"  Goal Suit: {self.format_suit(game.goal_suit)} {Colors.BOLD}{game.goal_suit.upper()}{Colors.RESET}"
+        )
         print(f"  Total Trades: {len(game.trades)}")
         print()
 
         # Scores table
-        print(f"  {Colors.BOLD}{Colors.CYAN}╔════════════════════════════════════════════════╗{Colors.RESET}")
-        print(f"  {Colors.BOLD}{Colors.CYAN}║              F I N A L   S C O R E S           ║{Colors.RESET}")
-        print(f"  {Colors.BOLD}{Colors.CYAN}╠════════════════════════════════════════════════╣{Colors.RESET}")
+        print(
+            f"  {Colors.BOLD}{Colors.CYAN}╔════════════════════════════════════════════════╗{Colors.RESET}"
+        )
+        print(
+            f"  {Colors.BOLD}{Colors.CYAN}║              F I N A L   S C O R E S           ║{Colors.RESET}"
+        )
+        print(
+            f"  {Colors.BOLD}{Colors.CYAN}╠════════════════════════════════════════════════╣{Colors.RESET}"
+        )
 
         # Sort by score
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -317,28 +371,43 @@ class FiggieVisualizer:
             score_str = self.format_money(score, show_sign=True)
             goal_str = f"{self.format_suit(game.goal_suit)}×{goal_cards}"
 
-            print(f"  {Colors.CYAN}║{Colors.RESET} {medal} {rank}. {name:^8}  │  {score_str:^20}  │  {goal_str:^10} {Colors.CYAN}║{Colors.RESET}")
+            print(
+                f"  {Colors.CYAN}║{Colors.RESET} {medal} {rank}. {name:^8}  │  {score_str:^20}  │  {goal_str:^10} {Colors.CYAN}║{Colors.RESET}"
+            )
 
-        print(f"  {Colors.BOLD}{Colors.CYAN}╚════════════════════════════════════════════════╝{Colors.RESET}")
+        print(
+            f"  {Colors.BOLD}{Colors.CYAN}╚════════════════════════════════════════════════╝{Colors.RESET}"
+        )
         print()
 
 
-def run_visual_game(player_modules: list, visualizer: FiggieVisualizer = None,
-                    player_names: list = None) -> dict:
+def run_visual_game(
+    player_modules: list, visualizer: FiggieVisualizer = None, player_names: list = None
+) -> dict:
     """
     Run a game with visualization.
 
     This is a modified version of run_game() that includes visualization.
     """
     from engine import (
-        FiggieGame, create_deck, deal_cards, get_game_state,
-        validate_action, execute_action, calculate_scores,
-        VALID_PLAYER_COUNTS, STARTING_MONEY, MAX_TURNS_PER_PLAYER, get_ante
+        FiggieGame,
+        create_deck,
+        deal_cards,
+        get_game_state,
+        validate_action,
+        execute_action,
+        calculate_scores,
+        VALID_PLAYER_COUNTS,
+        STARTING_MONEY,
+        MAX_TURNS_PER_PLAYER,
+        get_ante,
     )
 
     num_players = len(player_modules)
     if num_players not in VALID_PLAYER_COUNTS:
-        raise ValueError(f"Figgie requires {VALID_PLAYER_COUNTS} players, got {num_players}")
+        raise ValueError(
+            f"Figgie requires {VALID_PLAYER_COUNTS} players, got {num_players}"
+        )
 
     if visualizer is None:
         visualizer = FiggieVisualizer(delay=0.3, player_names=player_names)
@@ -425,17 +494,23 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Figgie Visualizer Demo")
     parser.add_argument("players", nargs="*", help="Paths to player bot files")
-    parser.add_argument("--delay", type=float, default=0.3, help="Delay between frames (seconds)")
+    parser.add_argument(
+        "--delay", type=float, default=0.3, help="Delay between frames (seconds)"
+    )
     parser.add_argument("--names", nargs="+", help="Player names")
     args = parser.parse_args()
 
     if args.players:
         from engine import load_player
+
         player_modules = [load_player(p) for p in args.players]
-        player_names = args.names or [os.path.basename(os.path.dirname(p)) for p in args.players]
+        player_names = args.names or [
+            os.path.basename(os.path.dirname(p)) for p in args.players
+        ]
     else:
         # Demo with built-in main.py bot
         import main
+
         player_modules = [main] * 4
         player_names = ["Alice", "Bob", "Carol", "Dave"]
 
@@ -443,7 +518,9 @@ if __name__ == "__main__":
 
     try:
         result = run_visual_game(player_modules, viz, player_names)
-        print(f"\nGame completed! Winner: P{max(result['scores'], key=result['scores'].get)}")
+        print(
+            f"\nGame completed! Winner: P{max(result['scores'], key=result['scores'].get)}"
+        )
     except KeyboardInterrupt:
         show_cursor()
         print("\n\nGame interrupted.")

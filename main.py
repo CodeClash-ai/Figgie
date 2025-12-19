@@ -87,7 +87,9 @@ def get_card_value(suit: str, estimated_goal: str, confidence: float) -> int:
         return max(1, int(5 * (1 - confidence)))
 
 
-def should_buy(state: dict, suit: str, offer_price: int, estimated_goal: str, confidence: float) -> bool:
+def should_buy(
+    state: dict, suit: str, offer_price: int, estimated_goal: str, confidence: float
+) -> bool:
     """Decide if we should buy a card at the given offer price."""
     value = get_card_value(suit, estimated_goal, confidence)
 
@@ -99,7 +101,9 @@ def should_buy(state: dict, suit: str, offer_price: int, estimated_goal: str, co
         return offer_price < value * 0.5  # Be conservative with non-goal suits
 
 
-def should_sell(state: dict, suit: str, bid_price: int, estimated_goal: str, confidence: float) -> bool:
+def should_sell(
+    state: dict, suit: str, bid_price: int, estimated_goal: str, confidence: float
+) -> bool:
     """Decide if we should sell a card at the given bid price."""
     value = get_card_value(suit, estimated_goal, confidence)
     hand = state["hand"]
