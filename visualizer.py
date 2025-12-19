@@ -8,7 +8,6 @@ Provides a rich terminal display of Figgie game state with colors and formatting
 import os
 import sys
 import time
-from dataclasses import dataclass
 
 # ANSI color codes
 class Colors:
@@ -31,6 +30,8 @@ class Colors:
     BRIGHT_GREEN = "\033[92m"
     BRIGHT_YELLOW = "\033[93m"
     BRIGHT_BLUE = "\033[94m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_CYAN = "\033[96m"
     BRIGHT_WHITE = "\033[97m"
 
     # Background
@@ -53,11 +54,6 @@ SUITS = {
 def clear_screen():
     """Clear terminal screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
-
-
-def move_cursor(row: int, col: int):
-    """Move cursor to position."""
-    print(f"\033[{row};{col}H", end="")
 
 
 def hide_cursor():
@@ -83,8 +79,6 @@ class FiggieVisualizer:
         """
         self.delay = delay
         self.player_names = player_names
-        self.last_action = None
-        self.last_trade = None
 
     def get_player_name(self, player_id: int, num_players: int) -> str:
         """Get display name for player."""
@@ -409,7 +403,8 @@ def run_visual_game(player_modules: list, visualizer: FiggieVisualizer = None,
 
     # Show final state with goal revealed
     visualizer.render_game_state(game, show_goal=True)
-    time.sleep(1)
+    if visualizer.delay > 0:
+        time.sleep(max(1, visualizer.delay * 3))  # Pause longer on final state
 
     # Show final scores
     visualizer.render_final_scores(game, game.final_scores)
@@ -441,7 +436,6 @@ if __name__ == "__main__":
         player_names = args.names or [os.path.basename(os.path.dirname(p)) for p in args.players]
     else:
         # Demo with built-in main.py bot
-        from engine import load_player
         import main
         player_modules = [main] * 4
         player_names = ["Alice", "Bob", "Carol", "Dave"]
