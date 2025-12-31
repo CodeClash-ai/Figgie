@@ -1,0 +1,68 @@
+How to Play
+RULES, STRATEGY, EXAMPLES.
+Figgie is a card game that was invented at Jane Street in 2013. It was designed to simulate open-outcry commodities trading. Most of the skill in Figgie is in negotiating trades that benefit both the buyer and seller. Like in poker, your objective in Figgie is to make money over a series of rounds.
+Tutorial
+Getting Started
+Figgie games can be played by 4 or 5 players. Beginning with $350 each, players buy and sell suits from each other: spades () and clubs () are black suits, and hearts () and diamonds () are red suits.
+Each Figgie deck contains 40 cards:
+- two 10-card suits
+- one 8-card suit
+- one 12-card suit
+Only one special suit, the goal suit, has any value.
+Goal Suit
+The goal suit will always be the same color (black or red) as the 12-card suit.
+The goal suit can contain either 8 or 10 cards. All other suits are worth nothing.
+OUTLINE OF A ROUND
+â¢ Players automatically ante even shares to form a $200 pot.
+â¢ All 40 cards are randomly distributed evenly among the players.
+â¢ Players trade for 4 minutes by placing bids and offers and by buying and selling suits from one another.
+â¢ At the end of trading, players collect a $10 bonus from the pot for each goal suit card that they own.
+â¢ The owner (or owners) of the most goal suit cards wins the rest of the pot.
+BASIC STRATEGY
+â¢ Attempt to deduce the 12-card suit to determine the goal suit.
+â Remember, itâs the same color as the 12-card suit.
+â¢ Accumulate goal suit cards while selling cards of other suits, as long as the prices seem worthwhile.
+â¢ Finish with the most goal suit cards and collect the bonus.
+SET UP AND DEAL
+To play Figgie, download the app from the Apple App Store, Google Play Store, or launch the web version here.
+You can play as a guest, but for the best experience and to track your progress, create an account. Once signed in, create a Display Name and select an Avatar and a Frame to stand out from your opponents.
+On the Home Screen, you can join a game from the âStarting Soonâ list, or host your own game from the âCreate Newâ menu. If there arenât 4 or 5 players to start a game, bots can be added in their place by hitting the + button on a seat. Once all of the players have declared themselves ready, the host can start the game
+Before the bell rings and trading begins, the ante for the round will be deducted from the playersâ chip count. You can also catch a first glimpse of your starting hand at this time.
+TRADING
+Players negotiate trades for suits by performing the following actions:
+â¢ Place a new bid or offer by manually typing it into any suit's "bid" or "offer" entry box. You can also use helper keys to bid (b) or offer (a) any suit (s,c,d,h), followed by the amount, then enter.
+â¢ "Penny" a current bid or offer (place a bid that's one higher or an offer that's one lower) by clicking the up arrow beside any bid or the down arrow beside any offer.
+â¢ Buy or sell a card by clicking any offer's "buy" button or any bid's "sell" button for the displayed amount. On desktop, you can also use helper keys to buy (ff) or sell (aa) any suit (s,c,d,h), followed by enter.
+Players do not take turns: any player can perform any of these actions at any time during the trading period.
+Players may only trade one card at a time. After each trade, all quotes in all suits are automatically canceled and players must enter fresh quotes before anyone can make another trade.
+Players can continue to bid, offer, and trade until the 4 minutes (standard game mode) is up. Players will not necessarily end with the same number of cards as they startedâin fact, they may end with no cards at all!
+HELPER KEYS (Desktop only)
+On desktop, you can use the following keyboard keys to trigger game commands and execute trades faster. To bring up a list of Helper Keys during a game, select âHelper Keysâ from the menu, or tap â?â or â/â on the keyboard.
+PAYOUT
+After the timer runs out (standard mode), or the host ends the game, all of the playersâ hands are shown, the goal suit is revealed, and the pot is automatically distributed according to the number of goal suit cards in each playerâs hand. If multiple players tie for owning the most goal suit cards, they split the remainder of the pot evenly. After each round, players are ranked according to their cumulative bank amount.
+REVIEW ROUND
+At the end of each round, the gameâs host has an option to âReviewâ the round just played, where the state of the round can be viewed at the point of any action.
+In this mode, the host has the ability to click/tap any step in the trade history. This will change the game board for all players and spectators to show the state the game was in at that step.
+NEW ROUND
+At the end of each round the gameâs host has an option to start a âNew Roundâ, which will start a new round of play retaining the same players and bots as the previous round.
+EXIT GAME
+When the host exits the game, the game will be closed and all players returned to the Home Screen.
+When a player exits the game, the player will be returned to the Home Screen.
+WINNING
+Your objective in Figgie is to make money. The right way to do this depends heavily on your starting hand and your observations of the other players during the trading period.
+While there is no need to play Figgie for real money, you should behave as if you are playing for real money and make decisions that maximize your long-term profits. Just like in poker, play as many rounds as youâd like, then count your winnings to see how you did.
+DECK BREAKDOWNS AND EXAMPLE PAYOUTS
+12-card suit goal suit
+Example 1
+Example 2
+DEMO
+ACHIEVEMENTS & UNLOCKABLES
+The game features a series of achievements as challenges. Each achievement that is completed will unlock a new Avatar or Frame for players to customize their appearance in games.
+When a new achievement is unlocked, a notification will appear the next time the player returns to the lobby. The trophy icon in the header will also pulse and shine gold.
+A list of achievements, as well as the playerâs status towards completing each one, are available in the player profile. Click/tap the trophy icon in the header to go directly to that list.
+Avatars and Frames can be changed in the player profile any time the player is not currently in a game. Click/tap the avatar in the top left of the header to go there.
+Achievements are only available for registered accounts and will not be tracked for guest accounts.
+LEARNING MODE
+When starting a new Figgie game, you also have the option of starting a Learning mode game, which extends the timer to 20 minutes. There are two types of learning modes: one shows the opponentâs hands at all times, the other conceals them. Other than that, the rules, card counts, and scoring works the same as in Standard mode.
+LEADERBOARDS
+Registered players can see their stats and rankings on the global leaderboards by clicking on their avatar. Players are ranked by Match Rating and Rounds Played, both weekly and for all time.

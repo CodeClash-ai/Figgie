@@ -1,0 +1,64 @@
+FAQs
+FREQUENTLY ASKED QUESTIONS, ANSWERED.
+-
+How do I contact you for support?
+For technical support and to report bugs, outages, and ideas, email figgie@janestreet.com
+-
+Where does the name Figgie come from?
+Figgie is a nickname for a stock Jane Street traded at the time that we invented this game.
+-
+I've never played Figgie before. How can I learn how to play?
+Head over to our How To Play page. You'll find detailed information about Figgie rules, game play basics, and strategy, as well as a video tutorial.
+-
+Do I need an account to play?
+You can play as a guest without registering an account. If you've logged in as a guest, you have the option of converting to a registered account by linking it to Google or Apple. Registered accounts have the benefit of saving your progress, such as achievements, unlockables, and placement on the leaderboard. These will be available on any device you log into with that account.
+-
+What if I have only one or two other people to play with?
+You can wait for another player who's looking for a game to join. Or if you don't want to wait, just add a bot! Game hosts can fill any empty seat by clicking the + icon on an empty seat in the game lobby, before the game starts.
+-
+Can I play a game by myself?
+Absolutely. Create a game and add bots by clicking the + icon on an empty seat until four or five total seats are filled. It's a great way to learn the game, get some practice, and see if you can outsmart our bots. You can also have a look at the "Games Starting Soon" tab to join an open table with an empty seat.
+-
+What happens if a player runs out of chips?
+Players can continue to play rounds with negative chips. When a completely new game is joined, the playerâs chips will be replenished.
+-
+What happens if a player leaves a game?
+Players can leave a game at any point, and even join a new game. Their seat will be held until the round is over. Other players just won't see the replacement bot making any quotes or trades. A player that has left the game, voluntarily or due to a network issue, can rejoin an in-progress game and continue play.
+-
+What happens if I get disconnected while playing a game?
+No problem. Your seat in the game will be held for you. Just navigate to the games "In Progress" and find your game. You'll see a "rejoin" button that will get you right back in.
+-
+Can a round be paused?
+Yes, but only by the host. Other players will see when the game is paused, but won't see an option to pause or unpause.
+-
+Can I review what happened in a round?
+Yes! After each round, the game's host will see a "Review Round" button. While in Review mode, hosts can click/tap events on the history feed to view the state of the game at that moment.
+-
+Can I change my screen name?
+You can. If you'd like to change your screen name, click/tap on your avatar in the header. There you can change your name, avatar, and frame.
+-
+Can I watch a game without playing?
+Anyone can watch any game in progress. Head over to the "In Progress" games list click/tap the "watch" button for any game. Players can see how many people are watching their game via the number next to the eye icon in the gameâs header.
+-
+Can I delete my account?
+Yes. You can permanently delete your registered account from the in-app menu. This function will permanently remove the account and all personal data (e-mail address), progress, and unlockables will also be removed. This cannot be recovered. Guest accounts cannot be deleted in this manner, but will be purged automatically when the browser window or app is closed. Anonymous analytics data pertaining to your account may be retained for up to 1 year.
+-
+Will my personal information be collected?
+In connection with your use of the app, we may collect personal information such as email address and device identifiers.
+-
+How is âMatch Ratingâ on the Leaderboard calculated?
+Match rating is calculated using a variation of the ELO rating system. It takes into account your current rating compared to the average rating of the other players in the match. It also factors in an estimate on how well you should have done based on the hand dealt. There is also a small rating bump for a player's first few games (this rating bump decays as the player completes more matches). The final match rating gain or loss is then calculated by combining the above factors with the player's profit/loss for that round.
+-
+What does the Americas/Europe/Asia selector do?
+Figgie is best enjoyed when latency is minimal. Playing on a server within or close to your region will provide optimal performance. Upon launch, the game will attempt to autodetect and set your region. You can change this at any time. Note that connections using a VPN may result in the incorrect region being autodetected.
+-
+What happens if a player joins a 5 player game that contains bots?
+If a player joins an in-progress game, where any potentially free seats are taken by bots, they will replace one of the bots once the next round begins.
+-
+Can I prevent people from joining my game?
+Players can change the âAllow Players to Joinâ setting in the pre-game lobby. By default, any player is allowed to join. When set to âNoâ no players can join at that point forward. Hosts can remove bots and human players from the game by clicking the minus button on their avatar. This can only be done in the pre-game lobby, not once the match has started.
+-
+What is the difference between Standard and Learning games?
+Standard games are the default way to play Figgie, but not be ideal for new players to jump right into. These games conceal the opponentâs hands and rounds are 2 minutes long.
+Learning games are 20 minutes long and can be played with either the opponentâs hands concealed or visible.
+Standard matches contribute to your trade Skill Rating, while learning games do not.
